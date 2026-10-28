@@ -1,0 +1,18 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "twig-server",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["--disable-warning=ExperimentalWarning", "server/src/main.ts"],
+      "port": 8787,
+      "env": {
+        "PORT": "8787",
+        "PUBLIC_URL": "http://localhost:8787",
+        "DATABASE_PATH": "server/data/dev.db",
+        "ADMIN_EMAIL": "admin@twig.local",
+        "ADMIN_PASSWORD": "twig-local-dev-password"
+      }
+    }
+  ]
+}

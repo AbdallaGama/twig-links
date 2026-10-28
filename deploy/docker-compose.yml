@@ -1,0 +1,35 @@
+# Production stack: Caddy terminates HTTPS (automatic Let's Encrypt certificates, including
+# on-demand certificates for every customer link domain) and proxies to the Twig server.
+services:
+  twig:
+    build: ..
+    restart: unless-stopped
+    environment:
+      PUBLIC_URL: https://${TWIG_ADMIN_HOST:?set TWIG_ADMIN_HOST}
+      TRUST_PROXY: "true"
+      # ADMIN_EMAIL / ADMIN_PASSWORD are optional; otherwise use the setup token from `docker compose logs twig`.
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+    volumes:
+      - twig-data:/data
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      TWIG_ADMIN_HOST: ${TWIG_ADMIN_HOST}
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - twig
+
+volumes:
+  twig-data:
+  caddy-data:
+  caddy-config:

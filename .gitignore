@@ -1,0 +1,31 @@
+# Server
+server/node_modules/
+server/data/
+server/.env
+deploy/.env
+
+# Swift
+.build/
+.swiftpm/
+*.xcuserstate
+xcuserdata/
+DerivedData/
+
+# Android / Gradle
+.gradle/
+**/build/
+local.properties
+*.iml
+.idea/
+
+# Flutter
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+**/Pods/
+**/.symlinks/
+**/Flutter/ephemeral/
+**/Flutter/Generated.xcconfig
+**/Flutter/flutter_export_environment.sh
+
+.DS_Store

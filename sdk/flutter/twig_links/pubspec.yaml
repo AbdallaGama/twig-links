@@ -1,0 +1,27 @@
+name: twig_links
+description: "Free, self-hosted Universal Links, Android App Links and deferred deep linking for Flutter, backed by your own Twig server."
+version: 0.1.0
+publish_to: none
+homepage: https://github.com/your-org/twig
+
+environment:
+  sdk: ^3.10.0
+  flutter: ">=3.38.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: dev.twig.twig_links
+        pluginClass: TwigLinksPlugin
+      ios:
+        pluginClass: TwigLinksPlugin

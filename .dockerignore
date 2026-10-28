@@ -1,0 +1,11 @@
+**/node_modules
+**/.dart_tool
+**/build
+**/.build
+**/.gradle
+server/data
+sdk/flutter
+sdk/ios
+sdk/android
+docs
+.git

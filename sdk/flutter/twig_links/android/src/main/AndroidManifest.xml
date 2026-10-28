@@ -1,0 +1,4 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Flutter only adds INTERNET to debug builds; the SDK needs it in release too. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+</manifest>
