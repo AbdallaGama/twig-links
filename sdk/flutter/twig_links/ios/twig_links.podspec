@@ -7,7 +7,7 @@ Pod::Spec.new do |s|
   s.version          = '0.1.0'
   s.summary          = 'Twig: self-hosted Universal Links, App Links and deferred deep linking.'
   s.description      = <<-DESC
-Free, self-hosted deep linking SDK for Flutter (iOS side).
+Self-hosted deep linking SDK for Flutter (iOS side).
                        DESC
   s.homepage         = 'https://github.com/AbdallaGama/twig-links'
   s.license          = { :file => '../LICENSE' }

@@ -1,11 +1,11 @@
-# Deployment on Cloudflare (free plan)
+# Deployment
 
-Twig runs on Cloudflare's **Workers Free** plan — no credit card required:
+Twig runs on Cloudflare Workers with a D1 database (or on any machine with Node 22, see the end):
 
 ```
  user taps https://twig.<account>.workers.dev/AbC123
         │
- Cloudflare Worker "twig"   (server/src/worker.ts — free HTTPS hostname on workers.dev)
+ Cloudflare Worker "twig"   (server/src/worker.ts — HTTPS hostname on workers.dev)
         │                    + static assets (dashboard, Web SDK)
  D1 database "twig"         (SQLite: apps, links, clicks, devices, events, webhooks, users)
         ▲
@@ -15,31 +15,30 @@ Twig runs on Cloudflare's **Workers Free** plan — no credit card required:
                             (twig-alt.<account>.workers.dev = the iOS alternate domain)
 ```
 
-## Free plan limits
+## Resource usage
 
-| Resource | Free allowance | Twig usage |
-|----------|----------------|------------|
-| Worker requests | 100,000 / day | one per click, app open, event or dashboard call |
-| Worker CPU | 10 ms per request | redirects use ~1–3 ms; logins (password hashing) ~7 ms |
-| D1 storage | 5 GB | ~1 KB per click/event row |
-| D1 rows read | 5 million / day | dashboard analytics scan the events of the selected range |
-| D1 rows written | 100,000 / day | ~3 per click, ~4 per install |
-| Cron triggers | included | 1 per minute |
-| `workers.dev` hostnames | one per Worker | primary + alternate = 2 Workers per app |
+Compare these with the limits of your Cloudflare plan:
 
-In practice: tens of thousands of clicks per day for free. When requests exceed the daily
-allowance Cloudflare returns errors until the next day (nothing is charged on the free plan).
+| Resource | Twig usage |
+|----------|------------|
+| Worker requests | one per click, app open, event or dashboard call |
+| Worker CPU | redirects use ~1–3 ms; logins (password hashing) ~7 ms |
+| D1 storage | ~1 KB per click/event row |
+| D1 rows read | dashboard analytics scan the events of the selected range |
+| D1 rows written | ~3 per click, ~4 per install |
+| Cron triggers | 1 per minute |
+| `workers.dev` hostnames | primary + alternate = 2 Workers per app |
 
 ## Domains
 
-Each Worker gets a free HTTPS hostname: `<worker-name>.<your-subdomain>.workers.dev`.
+Each Worker gets an HTTPS hostname: `<worker-name>.<your-subdomain>.workers.dev`.
 
 * `twig.<sub>.workers.dev` — dashboard, API and the first app's **primary** link domain.
 * `twig-alt.<sub>.workers.dev` — the first app's **alternate** link domain.
 * More apps / customers: add another pair of environments in `server/wrangler.toml` (copy the
   `[env.alt]` block twice with new names, e.g. `acme` and `acme-alt`) and deploy them with
   `npx wrangler deploy --env acme`. All Workers share the same D1 database and dashboard.
-* A domain you own can later be added to Cloudflare (free) and attached to the Worker as a
+* A domain you own can be added to Cloudflare and attached to the Worker as a
   Custom Domain; add it to the app in the dashboard.
 
 ## First deploy
@@ -54,7 +53,12 @@ npx wrangler login
 npx wrangler d1 create twig
 ```
 
-Copy the printed `database_id` into both `database_id` lines of `server/wrangler.toml`.
+Copy `wrangler.example.toml` to `wrangler.toml` (it is git-ignored, so your account details stay
+local) and paste the printed `database_id` into both `database_id` lines:
+
+```bash
+cp wrangler.example.toml wrangler.toml
+```
 
 ```bash
 npm run cf:deploy
@@ -127,9 +131,9 @@ cd server && npx wrangler d1 migrations apply twig --local && npm run cf:dev
 ## Notes
 
 * Client IP and country come from Cloudflare (`CF-Connecting-IP`, `CF-IPCountry`).
-* The dashboard password hash uses PBKDF2 with 60,000 iterations to fit the 10 ms CPU budget.
-  For extra protection, put `/dashboard*` and `/api/*` behind **Cloudflare Access** (free for
-  up to 50 users) with email one-time codes.
+* The dashboard password hash uses PBKDF2 with 60,000 iterations to stay within the Workers CPU limit.
+  For extra protection, put `/dashboard*` and `/api/*` behind **Cloudflare Access** with email
+  one-time codes.
 * Backups: `npx wrangler d1 export twig --remote --output backup.sql`, or D1 Time Travel
-  (point-in-time restore for the last 7 days on the free plan).
-* The same server also runs on any machine with Node 22 (`npm start`) if you ever leave Cloudflare.
+  (point-in-time restore).
+* The same server also runs on any machine with Node 22 (`npm start`) without Cloudflare.

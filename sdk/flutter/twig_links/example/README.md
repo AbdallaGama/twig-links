@@ -1,17 +1,14 @@
-# twig_links_example
+# twig_links example
 
-Demonstrates how to use the twig_links plugin.
+A minimal app that shows how to use `twig_links`:
 
-## Getting Started
+- initialise Twig with your server, public key and link domains,
+- listen to `TwigLinks.instance.sessions` and open the linked screen,
+- create a share link with a title and preview data,
+- log a custom event.
 
-This project is a starting point for a Flutter application.
+Replace the values in `lib/main.dart` with the ones from your Twig dashboard, then run:
 
-A few resources to get you started if this is your first Flutter project:
-
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+```bash
+flutter run
+```

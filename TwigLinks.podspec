@@ -2,7 +2,7 @@ Pod::Spec.new do |s|
   s.name             = 'TwigLinks'
   s.version          = '0.1.0'
   s.summary          = 'Twig: self-hosted Universal Links and deferred deep linking for iOS.'
-  s.description      = 'Native iOS SDK for Twig, a free self-hosted deep linking, deferred deep linking and attribution server.'
+  s.description      = 'Native iOS SDK for Twig, a self-hosted deep linking, deferred deep linking and attribution server.'
   s.homepage         = 'https://github.com/AbdallaGama/twig-links'
   s.license          = { :type => 'MIT', :file => 'LICENSE' }
   s.author           = { 'Twig contributors' => 'https://github.com/AbdallaGama' }

@@ -1,10 +1,10 @@
 name: twig_links
-description: "Universal Links, Android App Links, deferred deep linking and share links for Flutter, backed by your own free, self-hosted Twig server."
+description: "Universal Links, Android App Links, deferred deep linking and share links for Flutter, backed by your own self-hosted Twig server."
 version: 0.1.0
 homepage: https://github.com/AbdallaGama/twig-links
 repository: https://github.com/AbdallaGama/twig-links/tree/main/sdk/flutter/twig_links
 issue_tracker: https://github.com/AbdallaGama/twig-links/issues
-documentation: https://github.com/AbdallaGama/twig-links/blob/main/docs/03-integration-guide.md
+documentation: https://github.com/AbdallaGama/twig-links/blob/main/docs/02-integration-guide.md
 topics:
   - deep-linking
   - universal-links

@@ -1,9 +1,9 @@
-# Twig — free, self-hosted deep linking
+# Twig — self-hosted deep linking
 
-Twig is our own replacement for Branch.io: Universal Links, Android App Links, deferred deep
-linking, short links, QR codes, smart banners, attribution, analytics and webhooks — running on
-**Cloudflare's free plan** (Workers + D1, no credit card), with **no per-user fees** for us or our
-customers.
+Twig is an open-source, self-hosted deep linking platform: Universal Links, Android App Links,
+deferred deep linking, short links, QR codes, smart banners, attribution, analytics and webhooks.
+You run the server yourself on Cloudflare Workers + D1 or on any Node 22 machine, and integrate
+it with the Flutter, iOS, Android and Web SDKs in this repository.
 
 ```
 repo/
@@ -12,23 +12,24 @@ repo/
 ├── sdk/ios/TwigLinks       Native iOS SDK (Swift Package / CocoaPods)
 ├── sdk/android             Native Android SDK (Kotlin library / AAR)
 ├── sdk/web/twig.js         Web SDK + smart banner (served by the server at /sdk/twig.js)
-└── docs/                   Reverse-engineering report, architecture, integration and deployment guides
+└── docs/                   Architecture, integration and deployment guides
 ```
 
-## Deploy to Cloudflare (free)
+## Deploy to Cloudflare
 
 ```bash
 cd server && npm install && npx wrangler login && npx wrangler d1 create twig
 ```
 
-Paste the database id into `server/wrangler.toml`, then:
+Copy `server/wrangler.example.toml` to `server/wrangler.toml`, paste the database id into it, then:
 
 ```bash
 cd server && npm run cf:deploy
 ```
 
-Link domains are free Worker hostnames: `twig.<account>.workers.dev` (primary) and
-`twig-alt.<account>.workers.dev` (alternate). See [docs/04-deployment.md](docs/04-deployment.md).
+Link domains are Worker hostnames: `twig.<account>.workers.dev` (primary) and
+`twig-alt.<account>.workers.dev` (alternate), or your own custom domains.
+See [docs/03-deployment.md](docs/03-deployment.md).
 
 ## Run locally
 
@@ -63,23 +64,21 @@ and Android details, and integrate an SDK from the app's **Integrate** tab.
 
 After install, the SDK's first `/v1/open` is matched by click id → Play install referrer →
 pasteboard → IP/OS/model fingerprint (in that order of certainty).
-See [docs/01-reverse-engineering-report.md](docs/01-reverse-engineering-report.md) for the analysis
-this design is based on.
+See [docs/01-architecture.md](docs/01-architecture.md) for the details.
 
 ## Tests
 
 ```bash
-cd server && npm test && npm run typecheck                       # 45 server tests
-cd sdk/flutter/twig_links && flutter test && flutter analyze     # 10 Flutter tests
-swift test                                                       # 7 iOS SDK tests (repo root)
-cd sdk/android && ./gradlew :twig-links:testDebugUnitTest        # 8 Android SDK tests
+cd server && npm test && npm run typecheck                       # server tests
+cd sdk/flutter/twig_links && flutter test && flutter analyze     # Flutter plugin tests
+swift test                                                       # iOS SDK tests (repo root)
+cd sdk/android && ./gradlew :twig-links:testDebugUnitTest        # Android SDK tests
 ```
 
 ## Documentation
 
-1. [Reverse-engineering report](docs/01-reverse-engineering-report.md) — how Branch.io works, with evidence
-2. [Architecture](docs/02-architecture.md) — components, data model, wire protocol, matching
-3. [Integration guide](docs/03-integration-guide.md) — Flutter, iOS, Android, Web, server API
-4. [Deployment](docs/04-deployment.md) — Cloudflare Workers free plan, D1, limits, domains
+1. [Architecture](docs/01-architecture.md) — components, data model, wire protocol, matching
+2. [Integration guide](docs/02-integration-guide.md) — Flutter, iOS, Android, Web, server API
+3. [Deployment](docs/03-deployment.md) — Cloudflare Workers, D1, Node, domains, configuration
 
 Licensed under MIT.

@@ -6,7 +6,7 @@ import type { AssetLoader, Twig } from './server.ts';
 import { createTwig, runMaintenance } from './server.ts';
 
 /**
- * Cloudflare Worker entry (free plan): D1 for storage, static assets for the dashboard and
+ * Cloudflare Worker entry: D1 for storage, static assets for the dashboard and
  * Web SDK, and a cron trigger for webhook delivery and the click purge.
  */
 interface WorkerEnv extends Record<string, unknown> {

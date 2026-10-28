@@ -1,4 +1,4 @@
-/// Twig: free, self-hosted Universal Links, App Links and deferred deep linking.
+/// Twig: self-hosted Universal Links, App Links and deferred deep linking.
 library;
 
 export 'src/models.dart';

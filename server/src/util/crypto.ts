@@ -73,7 +73,7 @@ export function randomToken(bytes = 32): string {
 }
 
 /**
- * PBKDF2-SHA256. 60,000 iterations keeps a login under the Workers free plan's 10 ms CPU
+ * PBKDF2-SHA256. 60,000 iterations keeps a login under the Workers 10 ms CPU
  * budget; the stored format records the count so it can be raised later without breaking logins.
  */
 const PBKDF2_ITERATIONS = 60_000;

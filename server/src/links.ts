@@ -262,7 +262,7 @@ export async function resolvePath(db: Db, app: App, path: string, query: URLSear
     return { link: null, data, tags, url };
   }
   // `/p/<code>` is the readable product form used by websites that redirect
-  // their `/p/*` paths here (e.g. water.fabric.digital/p/fiji-water).
+  // their `/p/*` paths here (e.g. shop.example.com/p/red-running-shoes).
   const code = segments.length === 2 && segments[0] === 'p' ? segments[1]! : segments.length === 1 ? segments[0]! : null;
   if (code === null || (segments.length === 1 && RESERVED_PATHS.has(code.toLowerCase()))) return null;
   const link = await getLinkByCode(db, app.id, code);

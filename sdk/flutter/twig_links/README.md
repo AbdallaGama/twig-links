@@ -1,8 +1,7 @@
 # twig_links
 
 Universal Links, Android App Links and deferred deep linking for Flutter — backed by
-**Twig**, a free, self-hosted deep linking server you run on Cloudflare's free plan.
-A drop-in way to replace paid link services (and the retired Firebase Dynamic Links).
+**Twig**, an open-source, self-hosted deep linking server you run on Cloudflare Workers or Node.
 
 - **Open the right screen:** a tapped link opens the app directly on its content.
 - **Deferred deep linking:** without the app, the link goes to the App Store / Google Play, and the
@@ -12,9 +11,9 @@ A drop-in way to replace paid link services (and the retired Firebase Dynamic Li
 - **Analytics:** clicks, installs, opens and events per link in the Twig dashboard.
 - No Dart dependencies; bring your own HTTP client if you need one.
 
-> You need a Twig server. Deploy it for free from the
+> You need a Twig server. Deploy it from the
 > [repository](https://github.com/AbdallaGama/twig-links) — see
-> [the deployment guide](https://github.com/AbdallaGama/twig-links/blob/main/docs/04-deployment.md).
+> [the deployment guide](https://github.com/AbdallaGama/twig-links/blob/main/docs/03-deployment.md).
 
 ## Install
 
@@ -67,18 +66,18 @@ await TwigLinks.instance.init(TwigConfig(
 // Every app open, including the first one after install.
 TwigLinks.instance.sessions.listen((session) {
   if (session.clickedLink && session.deeplinkPath != null) {
-    router.go('/${session.deeplinkPath}'); // e.g. "p/10468"
+    router.go('/${session.deeplinkPath}'); // e.g. "p/42"
   }
 });
 
 // A readable share link with a rich preview.
 final url = await TwigLinks.instance.createLink(const TwigLinkOptions(
-  alias: 'bubly-lime-sparkling-water',
+  alias: 'red-running-shoes',
   data: {
-    r'$deeplink_path': 'p/10468',
-    r'$og_title': 'Bubly Lime Sparkling Water',
+    r'$deeplink_path': 'p/42',
+    r'$og_title': 'Red Running Shoes',
     r'$og_description': 'Check out this amazing product!',
-    r'$og_image_url': 'https://example.com/bubly.jpg',
+    r'$og_image_url': 'https://example.com/red-shoes.jpg',
   },
   channel: 'app_share',
 ));
@@ -104,9 +103,9 @@ TwigConfig(
 
 ## More
 
-- [Full integration guide](https://github.com/AbdallaGama/twig-links/blob/main/docs/03-integration-guide.md)
+- [Full integration guide](https://github.com/AbdallaGama/twig-links/blob/main/docs/02-integration-guide.md)
   (Flutter, native iOS and Android SDKs, web SDK, server API)
-- [Architecture and wire protocol](https://github.com/AbdallaGama/twig-links/blob/main/docs/02-architecture.md)
+- [Architecture and wire protocol](https://github.com/AbdallaGama/twig-links/blob/main/docs/01-architecture.md)
 - A configured example app is in [`example/`](example/).
 
 Licensed under MIT.

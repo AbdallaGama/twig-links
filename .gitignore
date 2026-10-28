@@ -31,6 +31,7 @@ local.properties
 .DS_Store
 
 dist-assets/
+server/wrangler.toml
 .wrangler/
 .dev.vars
 
