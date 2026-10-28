@@ -497,7 +497,14 @@
     el.innerHTML = '<form id="domains" class="panel"><h2>Link domains</h2><p class="muted">Use a pair of free Worker hostnames per app, e.g. twig.&lt;account&gt;.workers.dev as primary and twig-alt.&lt;account&gt;.workers.dev as alternate (or custom domains routed to the Worker). The alternate domain gives iOS Universal Links a second chance from the interstitial page.</p>' +
       '<div class="fields"><div class="field"><label>Primary domains <span class="muted">(one per line; the first is used in new links)</span></label><textarea name="primary">' + h(primary) + '</textarea></div>' +
       '<div class="field"><label>Alternate domain</label><input name="alternate" value="' + h(alternate) + '"></div></div><button>Save domains</button><p class="error"></p></form>' +
-      '<div class="panel"><h2>Association files</h2><p class="muted">Served automatically at <code>/.well-known/apple-app-site-association</code> and <code>/.well-known/assetlinks.json</code> on every domain above. Fill in iOS and Android details in Settings first.</p><div id="assoc">Loading…</div></div>';
+      '<div class="panel"><h2>Files for your own website</h2><p class="muted">To use links on a website you control (for example the customer\'s domain), download these two files and send them to the website\'s backend developer. They must be uploaded to <code>/.well-known/</code> on that website. Both are generated from this app\'s Settings, so download them again after changing Team ID, bundle IDs, package name or fingerprints.</p>' +
+      '<form id="website-files"><div class="field"><label>Paths that open the app <span class="muted">(comma separated; empty = the whole website)</span></label><input name="paths" value="/p/*" placeholder="/p/*, /product/*"></div></form>' +
+      '<div id="website-missing"></div>' +
+      '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:10px 0">' +
+      '<button type="button" id="dl-aasa">' + icon('download') + '<span>apple-app-site-association</span></button>' +
+      '<button type="button" id="dl-assetlinks">' + icon('download') + '<span>assetlinks.json</span></button>' +
+      '<span id="dev-copy"></span></div><div id="website-preview"></div></div>' +
+      '<div class="panel"><h2>Association files on the link domains</h2><p class="muted">Served automatically at <code>/.well-known/apple-app-site-association</code> and <code>/.well-known/assetlinks.json</code> on every domain above — nothing to upload. Fill in iOS and Android details in Settings first.</p><div id="assoc">Loading…</div></div>';
     el.querySelector('#domains').addEventListener('submit', function (e) {
       e.preventDefault();
       var f = e.target;
@@ -510,6 +517,54 @@
       el.querySelector('#assoc').innerHTML = '<h3>apple-app-site-association</h3><pre>' + h(JSON.stringify(res.apple_app_site_association, null, 2)) + '</pre>' +
         '<h3>assetlinks.json</h3><pre>' + h(JSON.stringify(res.assetlinks, null, 2)) + '</pre>';
     });
+    // Website files: regenerated whenever the paths change.
+    var website = null;
+    var pathsInput = el.querySelector('#website-files [name=paths]');
+    function download(name, value) {
+      var blob = new Blob([JSON.stringify(value, null, 2) + '\n'], { type: 'application/json' });
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+    }
+    function instructions(paths) {
+      var scope = paths.length ? paths.join(', ') : 'all paths';
+      return 'Hi,\n\nPlease upload the two attached files so they are served at exactly:\n\n' +
+        '  https://<your-domain>/.well-known/apple-app-site-association\n' +
+        '  https://<your-domain>/.well-known/assetlinks.json\n\n' +
+        'Requirements:\n' +
+        '- HTTP 200 over HTTPS, with no redirect on these two URLs.\n' +
+        '- Content-Type: application/json (the Apple file has no extension; please set the header).\n' +
+        '- Served as real files, not the website\'s HTML/404 page.\n' +
+        '- Publicly reachable: no login, bot protection or challenge on these paths.\n' +
+        '- Check that the .well-known folder is deployed (some build tools skip dot-folders).\n\n' +
+        'Only these paths will open the mobile app: ' + scope + '. The rest of the website is unchanged.\n\n' +
+        'To check:\n  curl -i https://<your-domain>/.well-known/apple-app-site-association\n' +
+        '  curl -i https://<your-domain>/.well-known/assetlinks.json\n\nThanks!';
+    }
+    function loadWebsite() {
+      var paths = pathsInput.value;
+      api('GET', '/api/apps/' + encodeURIComponent(app.id) + '/association/website?paths=' + encodeURIComponent(paths)).then(function (res) {
+        if (paths !== pathsInput.value) return; // a newer request is on its way
+        website = res;
+        var missing = res.missing.map(function (m) {
+          return m === 'ios' ? 'iOS: add Apple Team ID and bundle IDs in Settings — the Apple file is empty.' : 'Android: add the package name and SHA-256 fingerprints in Settings — assetlinks.json is empty.';
+        });
+        el.querySelector('#website-missing').innerHTML = missing.length ? '<p class="error">' + missing.map(h).join('<br>') + '</p>' : '';
+        el.querySelector('#dev-copy').innerHTML = copyButton(instructions(res.paths), 'Copy message for the developer');
+        el.querySelector('#website-preview').innerHTML = '<h3>apple-app-site-association</h3><pre>' + h(JSON.stringify(res.apple_app_site_association, null, 2)) + '</pre>' +
+          '<h3>assetlinks.json</h3><pre>' + h(JSON.stringify(res.assetlinks, null, 2)) + '</pre>' +
+          '<p class="muted">Android verifies the whole domain; which paths open the app on Android is set by the app\'s intent filters (for example <code>android:pathPrefix="/p/"</code>).</p>';
+      }).catch(function (err) { toast(err.message, 'error'); });
+    }
+    var pathsTimer;
+    pathsInput.addEventListener('input', function () { clearTimeout(pathsTimer); pathsTimer = setTimeout(loadWebsite, 300); });
+    el.querySelector('#website-files').addEventListener('submit', function (e) { e.preventDefault(); loadWebsite(); });
+    el.querySelector('#dl-aasa').addEventListener('click', function () { if (website) download('apple-app-site-association', website.apple_app_site_association); });
+    el.querySelector('#dl-assetlinks').addEventListener('click', function () { if (website) download('assetlinks.json', website.assetlinks); });
+    loadWebsite();
   }
 
   // ---- webhooks

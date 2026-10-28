@@ -46,3 +46,36 @@ export function assetLinks(app: App): Array<Record<string, unknown>> {
     },
   ];
 }
+
+/** Paths accepted for a website's Apple file: absolute, AASA wildcards allowed, no query or spaces. */
+const WEBSITE_PATH_RE = /^\/[A-Za-z0-9._~\-/*?%]{0,200}$/;
+
+export function parseWebsitePaths(input: string | null): string[] {
+  const paths = (input ?? '')
+    .split(/[\s,]+/)
+    .map((path) => path.trim())
+    .filter(Boolean)
+    .filter((path) => WEBSITE_PATH_RE.test(path));
+  return [...new Set(paths)].slice(0, 20);
+}
+
+/**
+ * apple-app-site-association for a website you upload yourself (for example a customer's own
+ * domain): only [paths] open the app, so every other page of the website keeps opening in the
+ * browser. An empty list means the whole website.
+ */
+export function websiteAppleAppSiteAssociation(app: App, paths: string[]): Record<string, unknown> {
+  const appIds = appleAppIds(app);
+  const included = paths.length ? paths : ['*'];
+  return {
+    applinks: {
+      apps: [],
+      details: appIds.length === 0 ? [] : [{
+        appIDs: appIds,
+        appID: appIds[0],
+        components: included.map((path) => ({ '/': path, comment: 'Opens the app' })),
+        paths: included,
+      }],
+    },
+  };
+}

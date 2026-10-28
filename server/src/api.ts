@@ -1,6 +1,6 @@
 import type { App } from './apps.ts';
 import { appForHost, createApp, deleteApp, getApp, getAppByPublicKey, getAppBySecret, listApps, primaryHost, rotateSecret, setDomains, updateApp } from './apps.ts';
-import { appleAppSiteAssociation, assetLinks } from './association.ts';
+import { appleAppIds, appleAppSiteAssociation, assetLinks, parseWebsitePaths, websiteAppleAppSiteAssociation } from './association.ts';
 import { breakdown, linkStats, parseRange, recentEvents, summary, timeseries, topLinks } from './analytics.ts';
 import type { User } from './auth.ts';
 import { bearerToken, changePassword, completeSetup, createUser, currentUser, deleteUser, listUsers, login, logout, requireUser, sessionCookie, userCount } from './auth.ts';
@@ -262,6 +262,17 @@ export function registerAdminRoutes(router: Router, deps: ApiDeps): void {
   router.post('/api/apps/:id/rotate-secret', async (ctx) => {
     await requireUser(db, ctx, ['owner', 'admin']);
     sendJson(ctx, 200, { secret_key: await rotateSecret(db, ctx.params.id!) });
+  });
+
+  /** The two files to upload to a website of your own, limited to ?paths=/p/* (comma separated). */
+  router.get('/api/apps/:id/association/website', async (ctx) => {
+    const app = await appAccess(deps, ctx, ctx.params.id!);
+    const paths = parseWebsitePaths(ctx.query.get('paths'));
+    const missing = [
+      ...(appleAppIds(app).length ? [] : ['ios']),
+      ...(assetLinks(app).length ? [] : ['android']),
+    ];
+    sendJson(ctx, 200, { paths, missing, apple_app_site_association: websiteAppleAppSiteAssociation(app, paths), assetlinks: assetLinks(app) });
   });
 
   router.get('/api/apps/:id/association', async (ctx) => {

@@ -316,6 +316,20 @@ describe('Twig end to end', () => {
     assert.equal(opened.json().data.$deeplink_path, 'p/10468');
   });
 
+  it('generates association files for a website, limited to chosen paths', async () => {
+    const res = await dash(`/api/apps/${appId}/association/website?paths=/p/*,/product/*,bad%20path`);
+    assert.equal(res.status, 200, res.body);
+    const json = res.json();
+    assert.deepEqual(json.paths, ['/p/*', '/product/*']);
+    assert.deepEqual(json.missing, []);
+    const detail = json.apple_app_site_association.applinks.details[0];
+    assert.deepEqual(detail.appIDs, ['ABCDE12345.com.shop.app']);
+    assert.deepEqual(detail.components.map((c: any) => c['/']), ['/p/*', '/product/*']);
+    assert.equal(json.assetlinks[0].target.package_name, 'com.shop.app');
+    const all = (await dash(`/api/apps/${appId}/association/website`)).json();
+    assert.deepEqual(all.apple_app_site_association.applinks.details[0].paths, ['*']);
+  });
+
   it('rejects unknown keys and domains taken by another app', async () => {
     const res = await http(h.port, { method: 'POST', path: '/v1/open', body: { key: 'tw_live_nope' } });
     assert.equal(res.status, 401);
