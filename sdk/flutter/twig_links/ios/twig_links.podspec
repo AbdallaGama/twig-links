@@ -9,7 +9,7 @@ Pod::Spec.new do |s|
   s.description      = <<-DESC
 Free, self-hosted deep linking SDK for Flutter (iOS side).
                        DESC
-  s.homepage         = 'https://github.com/AbdallaGama/Branchio-Clone-Github'
+  s.homepage         = 'https://github.com/AbdallaGama/twig-links'
   s.license          = { :file => '../LICENSE' }
   s.author           = { 'Twig contributors' => 'https://github.com/AbdallaGama' }
   s.source           = { :path => '.' }

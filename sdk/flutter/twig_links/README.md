@@ -13,8 +13,8 @@ A drop-in way to replace paid link services (and the retired Firebase Dynamic Li
 - No Dart dependencies; bring your own HTTP client if you need one.
 
 > You need a Twig server. Deploy it for free from the
-> [repository](https://github.com/AbdallaGama/Branchio-Clone-Github) — see
-> [the deployment guide](https://github.com/AbdallaGama/Branchio-Clone-Github/blob/main/docs/04-deployment.md).
+> [repository](https://github.com/AbdallaGama/twig-links) — see
+> [the deployment guide](https://github.com/AbdallaGama/twig-links/blob/main/docs/04-deployment.md).
 
 ## Install
 
@@ -104,9 +104,9 @@ TwigConfig(
 
 ## More
 
-- [Full integration guide](https://github.com/AbdallaGama/Branchio-Clone-Github/blob/main/docs/03-integration-guide.md)
+- [Full integration guide](https://github.com/AbdallaGama/twig-links/blob/main/docs/03-integration-guide.md)
   (Flutter, native iOS and Android SDKs, web SDK, server API)
-- [Architecture and wire protocol](https://github.com/AbdallaGama/Branchio-Clone-Github/blob/main/docs/02-architecture.md)
+- [Architecture and wire protocol](https://github.com/AbdallaGama/twig-links/blob/main/docs/02-architecture.md)
 - A configured example app is in [`example/`](example/).
 
 Licensed under MIT.

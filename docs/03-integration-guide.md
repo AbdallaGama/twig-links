@@ -75,7 +75,7 @@ dependencies:
   # or straight from GitHub:
   # twig_links:
   #   git:
-  #     url: https://github.com/AbdallaGama/Branchio-Clone-Github.git
+  #     url: https://github.com/AbdallaGama/twig-links.git
   #     path: sdk/flutter/twig_links
   #     ref: 0.1.0
 ```
@@ -129,8 +129,8 @@ entitlements and URL scheme already configured with placeholder domains).
 
 ## 3. Native iOS (Swift)
 
-Swift Package Manager: *File → Add Package Dependencies…* → `https://github.com/AbdallaGama/Branchio-Clone-Github`, version `0.1.0`, product
-`TwigLinks`. CocoaPods: `pod 'TwigLinks', :git => 'https://github.com/AbdallaGama/Branchio-Clone-Github.git', :tag => '0.1.0'`.
+Swift Package Manager: *File → Add Package Dependencies…* → `https://github.com/AbdallaGama/twig-links`, version `0.1.0`, product
+`TwigLinks`. CocoaPods: `pod 'TwigLinks', :git => 'https://github.com/AbdallaGama/twig-links.git', :tag => '0.1.0'`.
 
 ```swift
 import TwigLinks
