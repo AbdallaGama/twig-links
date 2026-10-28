@@ -188,6 +188,23 @@ void main() {
     expect(native.storage.containsKey('twig_identity'), isFalse);
   });
 
+  test('a transport in the config replaces the default one', () async {
+    final custom = <Uri>[];
+    final twig = TwigLinks.withDependencies(native: FakeNative(), transport: transport);
+    await twig.init(TwigConfig(
+      publicKey: 'tw_live_test',
+      apiUrl: Uri.parse('https://api.shop.test'),
+      linkDomains: const ['links.shop.test'],
+      trackForegroundOpens: false,
+      transport: (url, body, timeout) async {
+        custom.add(url);
+        return {'device_token': 'dv_2', 'data': <String, Object?>{}};
+      },
+    ));
+    expect(custom.single.path, '/v1/open');
+    expect(calls, isEmpty);
+  });
+
   test('qrCodeUri points at the server QR endpoint', () async {
     final twig = TwigLinks.withDependencies(native: FakeNative(), transport: transport);
     await twig.init(config());

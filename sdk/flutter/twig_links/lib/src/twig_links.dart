@@ -159,7 +159,7 @@ class TwigLinks {
     };
     TwigSession session;
     try {
-      final json = await withRetry(_transport, config.apiUrl.resolve('/v1/open'), body, config.requestTimeout);
+      final json = await withRetry(_activeTransport, config.apiUrl.resolve('/v1/open'), body, config.requestTimeout);
       _log('open → $json');
       _deviceToken = json['device_token'] as String? ?? _deviceToken;
       final data = (json['data'] as Map? ?? const {}).cast<String, Object?>();
@@ -196,7 +196,7 @@ class TwigLinks {
   Future<String> createLink(TwigLinkOptions options) async {
     final config = _requireConfig();
     try {
-      final json = await withRetry(_transport, config.apiUrl.resolve('/v1/url'), {'key': config.publicKey, ...options.toJson()}, config.requestTimeout);
+      final json = await withRetry(_activeTransport, config.apiUrl.resolve('/v1/url'), {'key': config.publicKey, ...options.toJson()}, config.requestTimeout);
       return json['url'] as String;
     } catch (error) {
       _log('createLink failed, using long link: $error');
@@ -231,7 +231,7 @@ class TwigLinks {
   }) async {
     final config = _requireConfig();
     await (_initFuture ?? Future<void>.value());
-    await _enqueue(() => withRetry(_transport, config.apiUrl.resolve('/v1/event'), {
+    await _enqueue(() => withRetry(_activeTransport, config.apiUrl.resolve('/v1/event'), {
           'key': config.publicKey,
           'device_token': _deviceToken,
           'name': name,
@@ -254,13 +254,15 @@ class TwigLinks {
     await _native.writeStorage({_kIdentity: identity});
     await (_initFuture ?? Future<void>.value());
     if (_deviceToken == null) return;
-    await _enqueue(() => withRetry(_transport, config.apiUrl.resolve('/v1/identity'),
+    await _enqueue(() => withRetry(_activeTransport, config.apiUrl.resolve('/v1/identity'),
         {'key': config.publicKey, 'device_token': _deviceToken, 'identity': identity}, config.requestTimeout));
   }
 
   /// URL of a QR code image for [linkUrl] (must be on one of your link domains).
   Uri qrCodeUri(String linkUrl, {String format = 'png', int scale = 8}) =>
       _requireConfig().apiUrl.replace(path: '/v1/qr', queryParameters: {'url': linkUrl, 'format': format, 'scale': '$scale'});
+
+  TwigTransport get _activeTransport => _config?.transport ?? _transport;
 
   TwigConfig _requireConfig() {
     final config = _config;

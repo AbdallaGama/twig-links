@@ -2,7 +2,7 @@
 #   npx wrangler d1 create twig   → paste the database_id below (both places)
 #   npm run cf:deploy
 
-name = "twig"
+name = "go"
 main = "src/worker.ts"
 compatibility_date = "2026-09-01"
 workers_dev = true
@@ -16,7 +16,7 @@ run_worker_first = true
 [[d1_databases]]
 binding = "DB"
 database_name = "twig"
-database_id = "00000000-0000-0000-0000-000000000000"
+database_id = "96976fcb-27e3-47f0-af5b-ec997ab87c5f"
 migrations_dir = "migrations"
 
 # Every minute: webhook delivery (and an hourly purge of old click fingerprints).
@@ -27,11 +27,11 @@ crons = ["* * * * *"]
 CLICK_RETENTION_DAYS = "30"
 MATCH_WINDOW_SECONDS = "7200"
 
-# Same code and database under a second free hostname (twig-alt.<account>.workers.dev): the
+# Same code and database under a second free hostname (open.<subdomain>.workers.dev): the
 # "alternate domain" that gives iOS Universal Links a second chance. Copy this block (with a new
 # name) for every extra pair of link hostnames you want, e.g. one pair per customer app.
 [env.alt]
-name = "twig-alt"
+name = "open"
 workers_dev = true
 
 [env.alt.assets]
@@ -42,7 +42,7 @@ run_worker_first = true
 [[env.alt.d1_databases]]
 binding = "DB"
 database_name = "twig"
-database_id = "00000000-0000-0000-0000-000000000000"
+database_id = "96976fcb-27e3-47f0-af5b-ec997ab87c5f"
 migrations_dir = "migrations"
 
 [env.alt.vars]

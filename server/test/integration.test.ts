@@ -292,6 +292,30 @@ describe('Twig end to end', () => {
     assert.equal(wrong.status, 401);
   });
 
+  it('serves readable /p/<name> product links with the product preview', async () => {
+    const product = { $deeplink_path: 'p/10468', product_id: '10468', $og_title: 'Fiji Water', $og_image_url: 'https://cdn.shop.test/fiji.png' };
+    const first = await sdk('/v1/url', { alias: 'fiji-water', data: product, channel: 'app_share' });
+    assert.equal(first.status, 200, first.body);
+
+    // Same product, new picture: the alias is refreshed instead of rejected.
+    const refreshed = await sdk('/v1/url', { alias: 'fiji-water', data: { ...product, $og_image_url: 'https://cdn.shop.test/fiji-2.png' }, channel: 'app_share' });
+    assert.equal(refreshed.status, 200, refreshed.body);
+    const other = await sdk('/v1/url', { alias: 'fiji-water', data: { $deeplink_path: 'p/1' } });
+    assert.equal(other.status, 409, 'a different product cannot take the alias');
+
+    const preview = await click('/p/fiji-water', UA.whatsapp);
+    assert.equal(preview.status, 200);
+    assert.match(preview.body, /<meta property="og:title" content="Fiji Water">/);
+    assert.match(preview.body, /<meta property="og:image" content="https:\/\/cdn\.shop\.test\/fiji-2\.png">/);
+
+    const android = await click('/p/fiji-water', UA.androidChrome);
+    assert.ok(String(android.headers.location).startsWith('intent://p/10468?link_click_id='));
+
+    const opened = await sdk('/v1/open', { device_token: iosDevice, os: 'iOS', link_url: `https://${LINK_HOST}/p/fiji-water` });
+    assert.equal(opened.json().data.product_id, '10468');
+    assert.equal(opened.json().data.$deeplink_path, 'p/10468');
+  });
+
   it('rejects unknown keys and domains taken by another app', async () => {
     const res = await http(h.port, { method: 'POST', path: '/v1/open', body: { key: 'tw_live_nope' } });
     assert.equal(res.status, 401);

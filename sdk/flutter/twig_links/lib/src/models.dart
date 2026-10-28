@@ -1,3 +1,5 @@
+import 'transport.dart';
+
 /// Configuration passed to [TwigLinks.init].
 class TwigConfig {
   const TwigConfig({
@@ -8,6 +10,7 @@ class TwigConfig {
     this.trackForegroundOpens = true,
     this.requestTimeout = const Duration(seconds: 10),
     this.debug = false,
+    this.transport,
   });
 
   /// The app's public SDK key (`tw_live_...`) from the Twig dashboard.
@@ -33,6 +36,10 @@ class TwigConfig {
 
   /// Prints requests and responses with `debugPrint`.
   final bool debug;
+
+  /// Sends the SDK's JSON requests. Defaults to a `dart:io` client; apps with
+  /// their own HTTP stack (for example a dedicated Dio client) can supply one.
+  final TwigTransport? transport;
 }
 
 /// The result of an app open: link data plus `+` system flags.

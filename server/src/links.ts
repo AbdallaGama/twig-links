@@ -141,6 +141,12 @@ export async function createLink(db: Db, app: App, input: CreateLinkInput): Prom
     if (existing) {
       const link = toLink(existing);
       if (canonical(link.data) === canonical(data)) return link;
+      // The same destination may refresh its preview (name, image) and tags:
+      // a product keeps one readable link while its details change.
+      const destination = data.$deeplink_path;
+      if (typeof destination === 'string' && destination !== '' && link.data.$deeplink_path === destination) {
+        return updateLink(db, link, { ...tags, data });
+      }
       throw new HttpError(409, 'alias_taken', `Alias "${alias}" is already used with different data`);
     }
   } else if (input.dedupe) {
@@ -255,8 +261,11 @@ export async function resolvePath(db: Db, app: App, path: string, query: URLSear
     const { data, tags } = dataFromQuery(query);
     return { link: null, data, tags, url };
   }
-  if (segments.length !== 1 || RESERVED_PATHS.has(segments[0]!.toLowerCase())) return null;
-  const link = await getLinkByCode(db, app.id, segments[0]!);
+  // `/p/<code>` is the readable product form used by websites that redirect
+  // their `/p/*` paths here (e.g. water.fabric.digital/p/fiji-water).
+  const code = segments.length === 2 && segments[0] === 'p' ? segments[1]! : segments.length === 1 ? segments[0]! : null;
+  if (code === null || (segments.length === 1 && RESERVED_PATHS.has(code.toLowerCase()))) return null;
+  const link = await getLinkByCode(db, app.id, code);
   if (!link || link.disabled) return null;
   const overrides = dataFromQuery(query).data;
   const data = { ...link.data };
