@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto';
+import { randomToken } from './util/crypto.ts';
 import type { App } from './apps.ts';
 import { appStoreUrl } from './apps.ts';
 import type { LinkData } from './links.ts';
@@ -56,7 +56,7 @@ h1{font-size:22px;margin:0 0 6px;line-height:1.25}p{color:var(--muted);margin:0 
 .done{display:none;color:var(--muted);font-size:14px;margin-top:12px}`;
 
 function shell(title: string, body: string, options: { head?: string; script?: string } = {}): Page {
-  const nonce = randomBytes(16).toString('base64');
+  const nonce = randomToken(16);
   const script = options.script ? `<script nonce="${nonce}">${options.script}</script>` : '';
   const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex"><title>${escapeHtml(title)}</title>${options.head ?? ''}<style>${STYLE}</style></head>

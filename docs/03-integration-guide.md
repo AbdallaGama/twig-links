@@ -3,8 +3,9 @@
 Every app needs, from the dashboard:
 
 * **Public key** `tw_live_…` (safe to ship in apps)
-* **API URL** — your Twig server, e.g. `https://links-admin.example.com`
-* **Link domains** — primary (e.g. `links.example.com`) and alternate (e.g. `open.example.com`)
+* **API URL** — your Twig server, e.g. `https://twig.my-account.workers.dev`
+* **Link domains** — primary and alternate, e.g. `twig.my-account.workers.dev` and `twig-alt.my-account.workers.dev`
+  (the examples below use `links.example.com` / `open.example.com`; substitute yours)
 
 Fill in **Settings → iOS** (Team ID, bundle IDs, App Store ID, URI scheme) and **Settings →
 Android** (package name, SHA-256 signing fingerprints, URI scheme) first: the server builds the
@@ -89,7 +90,7 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   unawaited(TwigLinks.instance.init(TwigConfig(
     publicKey: 'tw_live_…',
-    apiUrl: Uri.parse('https://links-admin.example.com'),
+    apiUrl: Uri.parse('https://twig.my-account.workers.dev'),
     linkDomains: const ['links.example.com', 'open.example.com'],
     checkPasteboardOnInstall: true, // iOS deterministic deferred deep links (shows "Allow Paste" once)
   )));
@@ -135,7 +136,7 @@ import TwigLinks
 func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
     Twig.shared.start(TwigConfig(
         publicKey: "tw_live_…",
-        apiURL: URL(string: "https://links-admin.example.com")!,
+        apiURL: URL(string: "https://twig.my-account.workers.dev")!,
         linkDomains: ["links.example.com", "open.example.com"],
         checkPasteboardOnInstall: true
     ), launchOptions: launchOptions)
@@ -181,7 +182,7 @@ class App : Application() {
         super.onCreate()
         Twig.init(this, TwigConfig(
             publicKey = "tw_live_…",
-            apiUrl = "https://links-admin.example.com",
+            apiUrl = "https://twig.my-account.workers.dev",
             linkDomains = listOf("links.example.com", "open.example.com"),
         ))
         Twig.addSessionListener { session ->
@@ -208,7 +209,7 @@ The Google Play install referrer is read automatically on the first launch.
 ## 5. Websites
 
 ```html
-<script src="https://links-admin.example.com/sdk/twig.js" defer></script>
+<script src="https://twig.my-account.workers.dev/sdk/twig.js" defer></script>
 <script>
   addEventListener('DOMContentLoaded', function () {
     Twig.init('tw_live_…').then(function (session) {
@@ -236,7 +237,7 @@ and add the domain to the app's entitlements and intent filters. The SDK reports
 ## 6. Server API (create links from your backend)
 
 ```bash
-curl -X POST https://links-admin.example.com/api/apps/<app_id>/links \
+curl -X POST https://twig.my-account.workers.dev/api/apps/<app_id>/links \
   -H 'Authorization: Bearer tw_secret_…' -H 'Content-Type: application/json' \
   -d '{"alias": "launch", "data": {"$deeplink_path": "promo/launch", "$og_title": "We launched!"}, "channel": "email", "campaign": "launch"}'
 ```

@@ -22,13 +22,13 @@ interface DeviceRow {
 /** Attribution window for in-app events after the last link touch. */
 const EVENT_ATTRIBUTION_WINDOW_MS = 30 * 86400 * 1000;
 
-function findDevice(db: Db, app: App, token: string | null, hardwareId: string | null): DeviceRow | undefined {
+async function findDevice(db: Db, app: App, token: string | null, hardwareId: string | null): Promise<DeviceRow | undefined> {
   if (token) {
-    const byToken = db.get<DeviceRow>('SELECT * FROM devices WHERE id = ? AND app_id = ?', token, app.id);
+    const byToken = await db.get<DeviceRow>('SELECT * FROM devices WHERE id = ? AND app_id = ?', token, app.id);
     if (byToken) return byToken;
   }
   if (hardwareId) {
-    return db.get<DeviceRow>('SELECT * FROM devices WHERE app_id = ? AND hardware_id = ? ORDER BY last_seen DESC LIMIT 1', app.id, hardwareId);
+    return await db.get<DeviceRow>('SELECT * FROM devices WHERE app_id = ? AND hardware_id = ? ORDER BY last_seen DESC LIMIT 1', app.id, hardwareId);
   }
   return undefined;
 }
@@ -56,17 +56,17 @@ export interface OpenResult {
  * POST /v1/open — called by the mobile SDKs on every launch and whenever the app is
  * opened by a link. The first launch after install is flagged with is_first_launch.
  */
-export function handleOpen(db: Db, app: App, body: Record<string, unknown>, ip: string, secret: string): OpenResult {
+export async function handleOpen(db: Db, app: App, body: Record<string, unknown>, ip: string, secret: string): Promise<OpenResult> {
   const hardwareId = str(body.hardware_id, 128);
   const isFirstLaunch = bool(body.is_first_launch);
-  const existing = findDevice(db, app, str(body.device_token, 64), hardwareId);
+  const existing = await findDevice(db, app, str(body.device_token, 64), hardwareId);
   const now = Date.now();
   const deviceId = existing?.id ?? prefixedId('dv', 20);
   const platform = str(body.os, 32)?.toLowerCase() ?? null;
   const kind = isFirstLaunch ? (existing ? 'reinstall' : 'install') : 'open';
   const linkUrl = str(body.link_url, 4096);
 
-  const attribution = attribute(db, app, {
+  const attribution = await attribute(db, app, {
     linkUrl,
     linkClickId: str(body.link_click_id, 32),
     installReferrer: str(body.install_referrer, 2048),
@@ -88,14 +88,14 @@ export function handleOpen(db: Db, app: App, body: Record<string, unknown>, ip: 
     // Opened by a URL that is not a Twig link (e.g. the website domain): hand it to the app.
     try {
       const host = new URL(linkUrl).hostname.toLowerCase();
-      if (!appForHost(db, host)) data['+non_twig_link'] = linkUrl;
+      if (!await appForHost(db, host)) data['+non_twig_link'] = linkUrl;
     } catch { /* ignore malformed URL */ }
   }
 
   const identity = str(body.identity, 256) ?? existing?.identity ?? null;
   const touchData = attribution ? JSON.stringify(attribution.data) : null;
   if (existing) {
-    db.run(
+    await db.run(
       `UPDATE devices SET hardware_id = COALESCE(?, hardware_id), platform = ?, os_version = ?, model = ?, brand = ?, app_version = ?, sdk = ?,
          identity = ?, last_seen = ?, last_touch_data = COALESCE(?, last_touch_data), last_touch_at = CASE WHEN ? IS NULL THEN last_touch_at ELSE ? END
        WHERE id = ?`,
@@ -103,7 +103,7 @@ export function handleOpen(db: Db, app: App, body: Record<string, unknown>, ip: 
       identity, now, touchData, touchData, now, deviceId,
     );
   } else {
-    db.run(
+    await db.run(
       `INSERT INTO devices (id, app_id, hardware_id, platform, os_version, model, brand, app_version, sdk, identity, first_seen, last_seen,
          install_link_id, install_data, last_touch_data, last_touch_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -113,7 +113,7 @@ export function handleOpen(db: Db, app: App, body: Record<string, unknown>, ip: 
   }
 
   const tags = attribution ? tagsFromData(attribution.data) : { channel: null, feature: null, campaign: null };
-  logEvent(db, {
+  await logEvent(db, {
     appId: app.id,
     kind,
     name: kind.toUpperCase(),
@@ -130,24 +130,24 @@ export function handleOpen(db: Db, app: App, body: Record<string, unknown>, ip: 
 }
 
 /** POST /v1/web/open — Web SDK session start on a website after a link redirect. */
-export function handleWebOpen(db: Db, app: App, body: Record<string, unknown>): OpenResult {
+export async function handleWebOpen(db: Db, app: App, body: Record<string, unknown>): Promise<OpenResult> {
   let browserToken = str(body.browser_token, 64);
   if (!browserToken || !browserToken.startsWith('wb_')) browserToken = prefixedId('wb', 20);
-  const existing = db.get<DeviceRow>('SELECT * FROM devices WHERE id = ? AND app_id = ?', browserToken, app.id);
-  const attribution = attributeWeb(db, app, str(body.match_id, 32), null, browserToken);
+  const existing = await db.get<DeviceRow>('SELECT * FROM devices WHERE id = ? AND app_id = ?', browserToken, app.id);
+  const attribution = await attributeWeb(db, app, str(body.match_id, 32), null, browserToken);
   const now = Date.now();
   const touchData = attribution ? JSON.stringify(attribution.data) : null;
   const identity = str(body.identity, 256) ?? existing?.identity ?? null;
   if (existing) {
-    db.run('UPDATE devices SET last_seen = ?, identity = ?, last_touch_data = COALESCE(?, last_touch_data), last_touch_at = CASE WHEN ? IS NULL THEN last_touch_at ELSE ? END WHERE id = ?',
+    await db.run('UPDATE devices SET last_seen = ?, identity = ?, last_touch_data = COALESCE(?, last_touch_data), last_touch_at = CASE WHEN ? IS NULL THEN last_touch_at ELSE ? END WHERE id = ?',
       now, identity, touchData, touchData, now, browserToken);
   } else {
-    db.run(`INSERT INTO devices (id, app_id, platform, sdk, identity, first_seen, last_seen, install_link_id, install_data, last_touch_data, last_touch_at)
+    await db.run(`INSERT INTO devices (id, app_id, platform, sdk, identity, first_seen, last_seen, install_link_id, install_data, last_touch_data, last_touch_at)
             VALUES (?, ?, 'web', ?, ?, ?, ?, ?, ?, ?, ?)`,
       browserToken, app.id, str(body.sdk, 64), identity, now, now, attribution?.linkId ?? null, touchData, touchData, attribution ? now : null);
   }
   if (attribution) {
-    logEvent(db, {
+    await logEvent(db, {
       appId: app.id, kind: 'web_open', name: 'WEB_OPEN', linkId: attribution.linkId, clickId: attribution.clickId,
       deviceId: browserToken, identity, platform: 'web', ...tagsFromData(attribution.data),
       data: { url: str(body.url, 2048), referrer: str(body.referrer, 2048) },
@@ -156,24 +156,24 @@ export function handleWebOpen(db: Db, app: App, body: Record<string, unknown>): 
   return { session_id: `se_${randomBase62(20)}`, device_token: browserToken, identity, data: systemData(attribution, !existing) };
 }
 
-function requireDevice(db: Db, app: App, token: string | null): DeviceRow {
-  const device = token ? db.get<DeviceRow>('SELECT * FROM devices WHERE id = ? AND app_id = ?', token, app.id) : undefined;
+async function requireDevice(db: Db, app: App, token: string | null): Promise<DeviceRow> {
+  const device = token ? await db.get<DeviceRow>('SELECT * FROM devices WHERE id = ? AND app_id = ?', token, app.id) : undefined;
   if (!device) throw new HttpError(400, 'unknown_device', 'Call /v1/open first and send the returned device_token');
   return device;
 }
 
 /** POST /v1/event — standard (PURCHASE, ...) or custom events, attributed to the last link touch. */
-export function handleEvent(db: Db, app: App, body: Record<string, unknown>): { ok: true; event_id: number; attributed: boolean } {
+export async function handleEvent(db: Db, app: App, body: Record<string, unknown>): Promise<{ ok: true; event_id: number; attributed: boolean }> {
   const name = str(body.name, 128);
   if (!name) throw new HttpError(400, 'name_required');
-  const device = requireDevice(db, app, str(body.device_token, 64));
+  const device = await requireDevice(db, app, str(body.device_token, 64));
   const fresh = device.last_touch_at !== null && Date.now() - device.last_touch_at <= EVENT_ATTRIBUTION_WINDOW_MS;
   const touch = fresh ? parseJson<LinkData>(device.last_touch_data, {}) : {};
   const linkId = typeof touch['~id'] === 'string' ? Number(touch['~id']) : null;
   const revenue = Number(body.revenue);
   const custom = obj(body.data);
   const contentItems = Array.isArray(body.content_items) ? body.content_items.slice(0, 50) : undefined;
-  const eventId = logEvent(db, {
+  const eventId = await logEvent(db, {
     appId: app.id,
     kind: 'event',
     name: STANDARD_EVENTS.has(name.toUpperCase()) ? name.toUpperCase() : name,
@@ -190,9 +190,9 @@ export function handleEvent(db: Db, app: App, body: Record<string, unknown>): { 
 }
 
 /** POST /v1/identity — associates (or clears, with identity=null) a developer user id. */
-export function handleIdentity(db: Db, app: App, body: Record<string, unknown>): { ok: true; identity: string | null } {
-  const device = requireDevice(db, app, str(body.device_token, 64));
+export async function handleIdentity(db: Db, app: App, body: Record<string, unknown>): Promise<{ ok: true; identity: string | null }> {
+  const device = await requireDevice(db, app, str(body.device_token, 64));
   const identity = str(body.identity, 256);
-  db.run('UPDATE devices SET identity = ? WHERE id = ?', identity, device.id);
+  await db.run('UPDATE devices SET identity = ? WHERE id = ?', identity, device.id);
   return { ok: true, identity };
 }

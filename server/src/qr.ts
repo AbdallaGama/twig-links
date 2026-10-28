@@ -1,5 +1,3 @@
-import { deflateSync } from 'node:zlib';
-
 /**
  * Self-contained QR Code generator (ISO/IEC 18004, byte mode, versions 1–40).
  * Written from the specification so Twig needs no third-party QR service or package.
@@ -90,7 +88,7 @@ function alignmentPositions(version: number): number[] {
 }
 
 export function encodeQr(text: string, ecc: Ecc = 'M'): QrCode {
-  const bytes = [...Buffer.from(text, 'utf8')];
+  const bytes = [...new TextEncoder().encode(text)];
   let version = 1;
   for (; version <= 40; version++) {
     const countBits = version <= 9 ? 8 : 16;
@@ -294,27 +292,42 @@ const CRC_TABLE = (() => {
   return table;
 })();
 
-function crc32(buffer: Buffer): number {
+function crc32(bytes: Uint8Array): number {
   let crc = 0xffffffff;
-  for (const byte of buffer) crc = CRC_TABLE[(crc ^ byte) & 0xff]! ^ (crc >>> 8);
+  for (const byte of bytes) crc = CRC_TABLE[(crc ^ byte) & 0xff]! ^ (crc >>> 8);
   return (crc ^ 0xffffffff) >>> 0;
 }
 
-function pngChunk(type: string, data: Buffer): Buffer {
-  const length = Buffer.alloc(4);
-  length.writeUInt32BE(data.length);
-  const body = Buffer.concat([Buffer.from(type, 'ascii'), data]);
-  const crc = Buffer.alloc(4);
-  crc.writeUInt32BE(crc32(body));
-  return Buffer.concat([length, body, crc]);
+function concat(parts: Uint8Array[]): Uint8Array {
+  const out = new Uint8Array(parts.reduce((n, part) => n + part.length, 0));
+  let offset = 0;
+  for (const part of parts) { out.set(part, offset); offset += part.length; }
+  return out;
+}
+
+function uint32(value: number): Uint8Array {
+  const out = new Uint8Array(4);
+  new DataView(out.buffer).setUint32(0, value);
+  return out;
+}
+
+function pngChunk(type: string, data: Uint8Array): Uint8Array {
+  const body = concat([new TextEncoder().encode(type), data]);
+  return concat([uint32(data.length), body, uint32(crc32(body))]);
+}
+
+/** zlib-format deflate via CompressionStream (available in Workers and Node 22). */
+async function deflate(data: Uint8Array): Promise<Uint8Array> {
+  const stream = new Blob([data.slice()]).stream().pipeThrough(new CompressionStream('deflate'));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
 }
 
 /** 8-bit grayscale PNG. */
-export function qrToPng(qr: QrCode, options: { scale?: number; margin?: number } = {}): Buffer {
+export async function qrToPng(qr: QrCode, options: { scale?: number; margin?: number } = {}): Promise<Uint8Array> {
   const scale = Math.min(Math.max(Math.round(options.scale ?? 8), 1), 40);
   const margin = options.margin ?? 4;
   const dim = (qr.size + margin * 2) * scale;
-  const raw = Buffer.alloc((dim + 1) * dim, 255);
+  const raw = new Uint8Array((dim + 1) * dim).fill(255);
   for (let py = 0; py < dim; py++) {
     raw[py * (dim + 1)] = 0; // filter type: none
     const y = Math.floor(py / scale) - margin;
@@ -323,15 +336,15 @@ export function qrToPng(qr: QrCode, options: { scale?: number; margin?: number }
       if (y >= 0 && x >= 0 && y < qr.size && x < qr.size && qr.modules[y]![x]) raw[py * (dim + 1) + 1 + px] = 0;
     }
   }
-  const ihdr = Buffer.alloc(13);
-  ihdr.writeUInt32BE(dim, 0);
-  ihdr.writeUInt32BE(dim, 4);
+  const ihdr = new Uint8Array(13);
+  ihdr.set(uint32(dim), 0);
+  ihdr.set(uint32(dim), 4);
   ihdr[8] = 8; // bit depth
   ihdr[9] = 0; // grayscale
-  return Buffer.concat([
-    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+  return concat([
+    new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
     pngChunk('IHDR', ihdr),
-    pngChunk('IDAT', deflateSync(raw)),
-    pngChunk('IEND', Buffer.alloc(0)),
+    pngChunk('IDAT', await deflate(raw)),
+    pngChunk('IEND', new Uint8Array(0)),
   ]);
 }

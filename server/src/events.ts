@@ -32,16 +32,16 @@ export interface EventInput {
   data?: Record<string, unknown> | null;
 }
 
-export function logEvent(db: Db, input: EventInput): number {
+export async function logEvent(db: Db, input: EventInput): Promise<number> {
   const createdAt = Date.now();
-  const result = db.run(
+  const result = await db.run(
     `INSERT INTO events (app_id, kind, name, link_id, click_id, device_id, identity, channel, feature, campaign, platform, revenue, currency, data, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     input.appId, input.kind, input.name, input.linkId ?? null, input.clickId ?? null, input.deviceId ?? null, input.identity ?? null,
     input.channel ?? null, input.feature ?? null, input.campaign ?? null, input.platform ?? null,
     input.revenue ?? null, input.currency ?? null, input.data ? JSON.stringify(input.data) : null, createdAt,
   );
-  enqueueWebhooks(db, input.appId, input.kind, {
+  await enqueueWebhooks(db, input.appId, input.kind, {
     id: result.lastInsertRowid,
     event: input.kind,
     name: input.name,
@@ -96,51 +96,51 @@ function validateWebhookInput(input: Record<string, unknown>): { url: string; ev
   return { url, events: events.length ? events : ['*'] };
 }
 
-export function createWebhook(db: Db, appId: string, input: Record<string, unknown>): Webhook {
+export async function createWebhook(db: Db, appId: string, input: Record<string, unknown>): Promise<Webhook> {
   const { url, events } = validateWebhookInput(input);
   const id = prefixedId('wh', 16);
-  db.run('INSERT INTO webhooks (id, app_id, url, events, secret, active, created_at) VALUES (?, ?, ?, ?, ?, 1, ?)',
+  await db.run('INSERT INTO webhooks (id, app_id, url, events, secret, active, created_at) VALUES (?, ?, ?, ?, ?, 1, ?)',
     id, appId, url, JSON.stringify(events), `whsec_${randomToken(24)}`, Date.now());
-  return toWebhook(db.get<WebhookRow>('SELECT * FROM webhooks WHERE id = ?', id)!);
+  return toWebhook((await db.get<WebhookRow>('SELECT * FROM webhooks WHERE id = ?', id))!);
 }
 
-export function listWebhooks(db: Db, appId: string): Webhook[] {
-  return db.all<WebhookRow>('SELECT * FROM webhooks WHERE app_id = ? ORDER BY created_at', appId).map(toWebhook);
+export async function listWebhooks(db: Db, appId: string): Promise<Webhook[]> {
+  return (await db.all<WebhookRow>('SELECT * FROM webhooks WHERE app_id = ? ORDER BY created_at', appId)).map(toWebhook);
 }
 
-export function updateWebhook(db: Db, appId: string, id: string, input: Record<string, unknown>): Webhook {
-  const existing = db.get<WebhookRow>('SELECT * FROM webhooks WHERE id = ? AND app_id = ?', id, appId);
+export async function updateWebhook(db: Db, appId: string, id: string, input: Record<string, unknown>): Promise<Webhook> {
+  const existing = await db.get<WebhookRow>('SELECT * FROM webhooks WHERE id = ? AND app_id = ?', id, appId);
   if (!existing) throw new HttpError(404, 'webhook_not_found');
   const merged = { url: input.url ?? existing.url, events: input.events ?? parseJson(existing.events, ['*']) };
   const { url, events } = validateWebhookInput(merged);
   const active = input.active === undefined ? existing.active === 1 : input.active === true;
-  db.run('UPDATE webhooks SET url = ?, events = ?, active = ? WHERE id = ?', url, JSON.stringify(events), active, id);
-  return toWebhook(db.get<WebhookRow>('SELECT * FROM webhooks WHERE id = ?', id)!);
+  await db.run('UPDATE webhooks SET url = ?, events = ?, active = ? WHERE id = ?', url, JSON.stringify(events), active, id);
+  return toWebhook((await db.get<WebhookRow>('SELECT * FROM webhooks WHERE id = ?', id))!);
 }
 
-export function deleteWebhook(db: Db, appId: string, id: string): void {
-  db.run('DELETE FROM webhooks WHERE id = ? AND app_id = ?', id, appId);
+export async function deleteWebhook(db: Db, appId: string, id: string): Promise<void> {
+  await db.run('DELETE FROM webhooks WHERE id = ? AND app_id = ?', id, appId);
 }
 
-function enqueueWebhooks(db: Db, appId: string, kind: EventKind, payload: Record<string, unknown>): void {
-  const hooks = db.all<WebhookRow>('SELECT * FROM webhooks WHERE app_id = ? AND active = 1', appId).map(toWebhook);
+async function enqueueWebhooks(db: Db, appId: string, kind: EventKind, payload: Record<string, unknown>): Promise<void> {
+  const hooks = (await db.all<WebhookRow>('SELECT * FROM webhooks WHERE app_id = ? AND active = 1', appId)).map(toWebhook);
   const body = JSON.stringify(payload);
   for (const hook of hooks) {
     if (!hook.events.includes('*') && !hook.events.includes(kind)) continue;
-    db.run('INSERT INTO webhook_deliveries (webhook_id, payload, status, next_attempt_at, created_at) VALUES (?, ?, ?, ?, ?)',
+    await db.run('INSERT INTO webhook_deliveries (webhook_id, payload, status, next_attempt_at, created_at) VALUES (?, ?, ?, ?, ?)',
       hook.id, body, 'pending', Date.now(), Date.now());
   }
 }
 
-export function signPayload(secret: string, timestamp: number, body: string): string {
-  return `t=${timestamp},v1=${hmacHex(secret, `${timestamp}.${body}`)}`;
+export async function signPayload(secret: string, timestamp: number, body: string): Promise<string> {
+  return `t=${timestamp},v1=${await hmacHex(secret, `${timestamp}.${body}`)}`;
 }
 
 const MAX_ATTEMPTS = 8;
 
 /** Delivers due webhooks. Receivers verify X-Twig-Signature = HMAC-SHA256(secret, "<t>.<body>"). */
 export async function deliverDueWebhooks(db: Db, fetchImpl: typeof fetch = fetch): Promise<number> {
-  const due = db.all<{ id: number; webhook_id: string; payload: string; attempts: number; url: string; secret: string }>(
+  const due = await db.all<{ id: number; webhook_id: string; payload: string; attempts: number; url: string; secret: string }>(
     `SELECT d.id, d.webhook_id, d.payload, d.attempts, w.url, w.secret FROM webhook_deliveries d
      JOIN webhooks w ON w.id = d.webhook_id
      WHERE d.status = 'pending' AND d.next_attempt_at <= ? ORDER BY d.next_attempt_at LIMIT 25`,
@@ -152,7 +152,7 @@ export async function deliverDueWebhooks(db: Db, fetchImpl: typeof fetch = fetch
     try {
       const response = await fetchImpl(delivery.url, {
         method: 'POST',
-        headers: { 'content-type': 'application/json', 'user-agent': 'Twig-Webhooks/1', 'x-twig-signature': signPayload(delivery.secret, timestamp, delivery.payload) },
+        headers: { 'content-type': 'application/json', 'user-agent': 'Twig-Webhooks/1', 'x-twig-signature': await signPayload(delivery.secret, timestamp, delivery.payload) },
         body: delivery.payload,
         signal: AbortSignal.timeout(10_000),
       });
@@ -162,19 +162,19 @@ export async function deliverDueWebhooks(db: Db, fetchImpl: typeof fetch = fetch
     }
     const attempts = delivery.attempts + 1;
     if (!error) {
-      db.run("UPDATE webhook_deliveries SET status = 'delivered', attempts = ?, last_error = NULL WHERE id = ?", attempts, delivery.id);
+      await db.run("UPDATE webhook_deliveries SET status = 'delivered', attempts = ?, last_error = NULL WHERE id = ?", attempts, delivery.id);
     } else {
       const status = attempts >= MAX_ATTEMPTS ? 'failed' : 'pending';
       const delay = Math.min(30_000 * 2 ** (attempts - 1), 6 * 3600 * 1000);
-      db.run('UPDATE webhook_deliveries SET status = ?, attempts = ?, last_error = ?, next_attempt_at = ? WHERE id = ?',
+      await db.run('UPDATE webhook_deliveries SET status = ?, attempts = ?, last_error = ?, next_attempt_at = ? WHERE id = ?',
         status, attempts, error.slice(0, 500), Date.now() + delay, delivery.id);
     }
   }));
   return due.length;
 }
 
-export function recentDeliveries(db: Db, appId: string, limit = 50): Array<Record<string, unknown>> {
-  return db.all(
+export async function recentDeliveries(db: Db, appId: string, limit = 50): Promise<Array<Record<string, unknown>>> {
+  return await db.all(
     `SELECT d.id, d.webhook_id, d.status, d.attempts, d.last_error, d.created_at, w.url FROM webhook_deliveries d
      JOIN webhooks w ON w.id = d.webhook_id WHERE w.app_id = ? ORDER BY d.id DESC LIMIT ?`,
     appId, limit,

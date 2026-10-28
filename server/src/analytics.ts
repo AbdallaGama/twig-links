@@ -14,8 +14,8 @@ export function parseRange(query: URLSearchParams, defaultDays = 30): Range {
 
 const KINDS = ['click', 'install', 'reinstall', 'open', 'web_open', 'event'] as const;
 
-export function summary(db: Db, appId: string, range: Range): Record<string, number> {
-  const rows = db.all<{ kind: string; n: number; revenue: number | null }>(
+export async function summary(db: Db, appId: string, range: Range): Promise<Record<string, number>> {
+  const rows = await db.all<{ kind: string; n: number; revenue: number | null }>(
     'SELECT kind, COUNT(*) AS n, SUM(revenue) AS revenue FROM events WHERE app_id = ? AND created_at BETWEEN ? AND ? GROUP BY kind',
     appId, range.from, range.to,
   );
@@ -26,17 +26,17 @@ export function summary(db: Db, appId: string, range: Range): Record<string, num
     revenue += row.revenue ?? 0;
   }
   out.revenue = Math.round(revenue * 100) / 100;
-  out.links = db.get<{ n: number }>('SELECT COUNT(*) AS n FROM links WHERE app_id = ?', appId)?.n ?? 0;
-  out.attributed_installs = db.get<{ n: number }>(
+  out.links = (await db.get<{ n: number }>('SELECT COUNT(*) AS n FROM links WHERE app_id = ?', appId))?.n ?? 0;
+  out.attributed_installs = (await db.get<{ n: number }>(
     "SELECT COUNT(*) AS n FROM events WHERE app_id = ? AND kind IN ('install','reinstall') AND link_id IS NOT NULL AND created_at BETWEEN ? AND ?",
     appId, range.from, range.to,
-  )?.n ?? 0;
+  ))?.n ?? 0;
   return out;
 }
 
 /** Daily counts per kind; days are UTC dates (YYYY-MM-DD). */
-export function timeseries(db: Db, appId: string, range: Range, linkId: number | null = null): Array<Record<string, string | number>> {
-  const rows = db.all<{ day: string; kind: string; n: number }>(
+export async function timeseries(db: Db, appId: string, range: Range, linkId: number | null = null): Promise<Array<Record<string, string | number>>> {
+  const rows = await db.all<{ day: string; kind: string; n: number }>(
     `SELECT strftime('%Y-%m-%d', created_at / 1000, 'unixepoch') AS day, kind, COUNT(*) AS n
      FROM events WHERE app_id = ? AND created_at BETWEEN ? AND ? AND (? IS NULL OR link_id = ?)
      GROUP BY day, kind ORDER BY day`,
@@ -59,9 +59,9 @@ export function timeseries(db: Db, appId: string, range: Range, linkId: number |
 
 const BREAKDOWN_COLUMNS = new Set(['channel', 'feature', 'campaign', 'platform', 'name']);
 
-export function breakdown(db: Db, appId: string, range: Range, column: string, kind: string | null): Array<{ value: string | null; count: number; revenue: number }> {
+export async function breakdown(db: Db, appId: string, range: Range, column: string, kind: string | null): Promise<Array<{ value: string | null; count: number; revenue: number }>> {
   if (!BREAKDOWN_COLUMNS.has(column)) column = 'channel';
-  return db.all(
+  return await db.all(
     `SELECT ${column} AS value, COUNT(*) AS count, COALESCE(SUM(revenue), 0) AS revenue FROM events
      WHERE app_id = ? AND created_at BETWEEN ? AND ? AND (? IS NULL OR kind = ?)
      GROUP BY ${column} ORDER BY count DESC LIMIT 50`,
@@ -69,8 +69,8 @@ export function breakdown(db: Db, appId: string, range: Range, column: string, k
   );
 }
 
-export function topLinks(db: Db, appId: string, range: Range, limit = 20): Array<Record<string, unknown>> {
-  return db.all(
+export async function topLinks(db: Db, appId: string, range: Range, limit = 20): Promise<Array<Record<string, unknown>>> {
+  return await db.all(
     `SELECT l.id, l.code, l.channel, l.campaign, l.feature,
        SUM(CASE WHEN e.kind = 'click' THEN 1 ELSE 0 END) AS clicks,
        SUM(CASE WHEN e.kind IN ('install', 'reinstall') THEN 1 ELSE 0 END) AS installs,
@@ -85,12 +85,12 @@ export function topLinks(db: Db, appId: string, range: Range, limit = 20): Array
 }
 
 /** Per-link funnel plus how clicks were routed (store, intent, deepview, web, ...). */
-export function linkStats(db: Db, appId: string, linkId: number, range: Range): Record<string, unknown> {
-  const counts = db.all<{ kind: string; n: number; revenue: number | null }>(
+export async function linkStats(db: Db, appId: string, linkId: number, range: Range): Promise<Record<string, unknown>> {
+  const counts = await db.all<{ kind: string; n: number; revenue: number | null }>(
     'SELECT kind, COUNT(*) AS n, SUM(revenue) AS revenue FROM events WHERE app_id = ? AND link_id = ? AND created_at BETWEEN ? AND ? GROUP BY kind',
     appId, linkId, range.from, range.to,
   );
-  const routes = db.all<{ route: string; os: string | null; n: number }>(
+  const routes = await db.all<{ route: string; os: string | null; n: number }>(
     'SELECT route, os, COUNT(*) AS n FROM clicks WHERE app_id = ? AND link_id = ? AND created_at BETWEEN ? AND ? GROUP BY route, os ORDER BY n DESC',
     appId, linkId, range.from, range.to,
   );
@@ -98,12 +98,12 @@ export function linkStats(db: Db, appId: string, linkId: number, range: Range): 
     counts: Object.fromEntries(counts.map((row) => [row.kind, row.n])),
     revenue: counts.reduce((sum, row) => sum + (row.revenue ?? 0), 0),
     routes,
-    timeseries: timeseries(db, appId, range, linkId),
+    timeseries: await timeseries(db, appId, range, linkId),
   };
 }
 
-export function recentEvents(db: Db, appId: string, limit = 100): Array<Record<string, unknown>> {
-  return db.all(
+export async function recentEvents(db: Db, appId: string, limit = 100): Promise<Array<Record<string, unknown>>> {
+  return await db.all(
     `SELECT id, kind, name, link_id, device_id, identity, channel, campaign, platform, revenue, currency, created_at
      FROM events WHERE app_id = ? ORDER BY id DESC LIMIT ?`,
     appId, Math.min(Math.max(limit, 1), 500),

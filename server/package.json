@@ -1,7 +1,7 @@
 {
   "name": "twig-server",
   "version": "0.1.0",
-  "description": "Twig: free, self-hosted deep linking, deferred deep linking and link attribution server.",
+  "description": "Twig: free deep linking, deferred deep linking and link attribution server for Cloudflare Workers + D1 (also runs on Node).",
   "type": "module",
   "private": true,
   "license": "MIT",
@@ -9,13 +9,17 @@
     "node": ">=22.18.0"
   },
   "scripts": {
-    "start": "node --disable-warning=ExperimentalWarning src/main.ts",
     "dev": "node --disable-warning=ExperimentalWarning --watch src/main.ts",
+    "start": "node --disable-warning=ExperimentalWarning src/main.ts",
     "test": "node --disable-warning=ExperimentalWarning --test test/*.test.ts",
-    "typecheck": "tsc --noEmit -p ."
+    "typecheck": "tsc --noEmit -p .",
+    "assets": "node scripts/build-assets.mjs",
+    "cf:dev": "npm run assets && wrangler dev",
+    "cf:deploy": "npm run assets && wrangler d1 migrations apply twig --remote && wrangler deploy && wrangler deploy --env alt"
   },
   "devDependencies": {
     "@types/node": "22.20.5",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "wrangler": "^4.154.0"
   }
 }

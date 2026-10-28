@@ -29,3 +29,7 @@ local.properties
 **/Flutter/flutter_export_environment.sh
 
 .DS_Store
+
+dist-assets/
+.wrangler/
+.dev.vars

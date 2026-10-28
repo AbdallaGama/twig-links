@@ -154,7 +154,7 @@ export function normalizeConfig(input: unknown, base?: AppConfig): AppConfig {
   };
 }
 
-function toApp(db: Db, row: AppRow): App {
+async function toApp(db: Db, row: AppRow): Promise<App> {
   return {
     id: row.id,
     name: row.name,
@@ -162,66 +162,66 @@ function toApp(db: Db, row: AppRow): App {
     secretHint: row.secret_hint,
     config: normalizeConfig(parseJson(row.config, {})),
     createdAt: row.created_at,
-    domains: db.all<{ host: string; kind: 'primary' | 'alternate' }>(
+    domains: await db.all<{ host: string; kind: 'primary' | 'alternate' }>(
       'SELECT host, kind FROM domains WHERE app_id = ? ORDER BY kind DESC, host', row.id,
     ),
   };
 }
 
-export function createApp(db: Db, name: string, configInput: unknown): { app: App; secretKey: string } {
+export async function createApp(db: Db, name: string, configInput: unknown): Promise<{ app: App; secretKey: string }> {
   const cleanName = str(name, 120);
   if (!cleanName) throw new HttpError(400, 'name_required');
   const config = normalizeConfig(configInput);
   const id = prefixedId('app', 16);
   const publicKey = `tw_live_${randomBase62(24)}`;
   const secretKey = `tw_secret_${randomBase62(32)}`;
-  db.run(
+  await db.run(
     'INSERT INTO apps (id, name, public_key, secret_hash, secret_hint, config, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-    id, cleanName, publicKey, sha256Hex(secretKey), secretKey.slice(-4), JSON.stringify(config), Date.now(),
+    id, cleanName, publicKey, await sha256Hex(secretKey), secretKey.slice(-4), JSON.stringify(config), Date.now(),
   );
-  return { app: getApp(db, id)!, secretKey };
+  return { app: (await getApp(db, id))!, secretKey };
 }
 
-export function getApp(db: Db, id: string): App | null {
-  const row = db.get<AppRow>('SELECT * FROM apps WHERE id = ?', id);
-  return row ? toApp(db, row) : null;
+export async function getApp(db: Db, id: string): Promise<App | null> {
+  const row = await db.get<AppRow>('SELECT * FROM apps WHERE id = ?', id);
+  return row ? await toApp(db, row) : null;
 }
 
-export function listApps(db: Db): App[] {
-  return db.all<AppRow>('SELECT * FROM apps ORDER BY created_at').map((row) => toApp(db, row));
+export async function listApps(db: Db): Promise<App[]> {
+  return Promise.all((await db.all<AppRow>('SELECT * FROM apps ORDER BY created_at')).map((row) => toApp(db, row)));
 }
 
-export function getAppByPublicKey(db: Db, key: string | null): App | null {
+export async function getAppByPublicKey(db: Db, key: string | null): Promise<App | null> {
   if (!key) return null;
-  const row = db.get<AppRow>('SELECT * FROM apps WHERE public_key = ?', key);
-  return row ? toApp(db, row) : null;
+  const row = await db.get<AppRow>('SELECT * FROM apps WHERE public_key = ?', key);
+  return row ? await toApp(db, row) : null;
 }
 
-export function getAppBySecret(db: Db, secret: string | null): App | null {
+export async function getAppBySecret(db: Db, secret: string | null): Promise<App | null> {
   if (!secret || !secret.startsWith('tw_secret_')) return null;
-  const row = db.get<AppRow>('SELECT * FROM apps WHERE secret_hash = ?', sha256Hex(secret));
-  return row ? toApp(db, row) : null;
+  const row = await db.get<AppRow>('SELECT * FROM apps WHERE secret_hash = ?', await sha256Hex(secret));
+  return row ? await toApp(db, row) : null;
 }
 
-export function updateApp(db: Db, id: string, patch: { name?: unknown; config?: unknown }): App {
-  const app = getApp(db, id);
+export async function updateApp(db: Db, id: string, patch: { name?: unknown; config?: unknown }): Promise<App> {
+  const app = await getApp(db, id);
   if (!app) throw new HttpError(404, 'app_not_found');
   const name = patch.name === undefined ? app.name : str(patch.name, 120);
   if (!name) throw new HttpError(400, 'name_required');
   const config = patch.config === undefined ? app.config : normalizeConfig(patch.config, app.config);
-  db.run('UPDATE apps SET name = ?, config = ? WHERE id = ?', name, JSON.stringify(config), id);
-  return getApp(db, id)!;
+  await db.run('UPDATE apps SET name = ?, config = ? WHERE id = ?', name, JSON.stringify(config), id);
+  return (await getApp(db, id))!;
 }
 
-export function rotateSecret(db: Db, id: string): string {
+export async function rotateSecret(db: Db, id: string): Promise<string> {
   const secretKey = `tw_secret_${randomBase62(32)}`;
-  const result = db.run('UPDATE apps SET secret_hash = ?, secret_hint = ? WHERE id = ?', sha256Hex(secretKey), secretKey.slice(-4), id);
+  const result = await db.run('UPDATE apps SET secret_hash = ?, secret_hint = ? WHERE id = ?', await sha256Hex(secretKey), secretKey.slice(-4), id);
   if (result.changes === 0) throw new HttpError(404, 'app_not_found');
   return secretKey;
 }
 
-export function deleteApp(db: Db, id: string): void {
-  db.run('DELETE FROM apps WHERE id = ?', id);
+export async function deleteApp(db: Db, id: string): Promise<void> {
+  await db.run('DELETE FROM apps WHERE id = ?', id);
 }
 
 export function normalizeHost(value: unknown): string {
@@ -231,7 +231,7 @@ export function normalizeHost(value: unknown): string {
 }
 
 /** Replaces all domains of an app. A host can belong to only one app. */
-export function setDomains(db: Db, appId: string, domains: Array<{ host: unknown; kind?: unknown }>): DomainRecord[] {
+export async function setDomains(db: Db, appId: string, domains: Array<{ host: unknown; kind?: unknown }>): Promise<DomainRecord[]> {
   const clean = domains.map((domain) => ({
     host: normalizeHost(domain.host),
     kind: (domain.kind === 'alternate' ? 'alternate' : 'primary') as DomainRecord['kind'],
@@ -240,20 +240,20 @@ export function setDomains(db: Db, appId: string, domains: Array<{ host: unknown
   for (const domain of clean) {
     if (hosts.has(domain.host)) throw new HttpError(400, 'duplicate_domain', domain.host);
     hosts.add(domain.host);
-    const owner = db.get<{ app_id: string }>('SELECT app_id FROM domains WHERE host = ?', domain.host);
+    const owner = await db.get<{ app_id: string }>('SELECT app_id FROM domains WHERE host = ?', domain.host);
     if (owner && owner.app_id !== appId) throw new HttpError(409, 'domain_taken', `${domain.host} belongs to another app`);
   }
-  db.tx(() => {
-    db.run('DELETE FROM domains WHERE app_id = ?', appId);
-    for (const domain of clean) db.run('INSERT INTO domains (host, app_id, kind) VALUES (?, ?, ?)', domain.host, appId, domain.kind);
-  });
-  return getApp(db, appId)!.domains;
+  await db.batch([
+    db.statement('DELETE FROM domains WHERE app_id = ?', appId),
+    ...clean.map((domain) => db.statement('INSERT INTO domains (host, app_id, kind) VALUES (?, ?, ?)', domain.host, appId, domain.kind)),
+  ]);
+  return (await getApp(db, appId))!.domains;
 }
 
-export function appForHost(db: Db, host: string): { app: App; kind: 'primary' | 'alternate' } | null {
-  const row = db.get<{ app_id: string; kind: 'primary' | 'alternate' }>('SELECT app_id, kind FROM domains WHERE host = ?', host);
+export async function appForHost(db: Db, host: string): Promise<{ app: App; kind: 'primary' | 'alternate' } | null> {
+  const row = await db.get<{ app_id: string; kind: 'primary' | 'alternate' }>('SELECT app_id, kind FROM domains WHERE host = ?', host);
   if (!row) return null;
-  const app = getApp(db, row.app_id);
+  const app = await getApp(db, row.app_id);
   return app ? { app, kind: row.kind } : null;
 }
 

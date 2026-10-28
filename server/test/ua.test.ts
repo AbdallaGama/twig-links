@@ -68,11 +68,11 @@ describe('QR encoder', () => {
     assert.equal(qr.modules[3]![3], true);
   });
 
-  it('grows with the payload and renders SVG and PNG', () => {
+  it('grows with the payload and renders SVG and PNG', async () => {
     const qr = encodeQr('https://links.shop.test/' + 'x'.repeat(200), 'M');
     assert.ok(qr.version >= 7);
     assert.ok(qrToSvg(qr).startsWith('<svg'));
-    const png = qrToPng(qr, { scale: 2 });
+    const png = await qrToPng(qr, { scale: 2 });
     assert.deepEqual([...png.subarray(0, 8)], [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
   });
 });

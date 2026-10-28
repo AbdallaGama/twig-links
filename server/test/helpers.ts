@@ -1,10 +1,11 @@
-import { request, createServer, type Server } from 'node:http';
-import type { AddressInfo } from 'node:net';
 import type { App } from '../src/apps.ts';
 import { normalizeConfig } from '../src/apps.ts';
 import { loadConfig } from '../src/config.ts';
 import { Db } from '../src/db.ts';
+import { nodeAssets } from '../src/assets-node.ts';
+import type { Twig } from '../src/server.ts';
 import { createTwig } from '../src/server.ts';
+import { openSqliteD1 } from '../src/sqlite-d1.ts';
 
 export const UA = {
   iosSafari: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1',
@@ -40,57 +41,37 @@ export function testApp(overrides: Record<string, unknown> = {}): App {
 }
 
 export interface Harness {
-  baseUrl: string;
+  /** Kept for call-site compatibility; requests go straight to twig.handle(). */
   port: number;
   db: Db;
   close(): Promise<void>;
 }
 
+let current: Twig | null = null;
+
 export async function startServer(): Promise<Harness> {
-  const config = { ...loadConfig({}), databasePath: ':memory:', publicUrl: 'http://admin.test', sdkRateLimitPerMinute: 100_000 };
-  const db = new Db(':memory:');
-  const twig = createTwig(config, db, () => {});
-  const server: Server = createServer((req, res) => { void twig.handle(req, res); });
-  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
-  const port = (server.address() as AddressInfo).port;
-  return {
-    baseUrl: `http://127.0.0.1:${port}`,
-    port,
-    db,
-    close: () => new Promise<void>((resolve) => server.close(() => { db.close(); resolve(); })),
-  };
+  const config = { ...loadConfig({}, 'http://admin.test'), sdkRateLimitPerMinute: 100_000 };
+  const db = new Db(openSqliteD1(':memory:'));
+  current = await createTwig(config, db, { log: () => {}, assets: nodeAssets() });
+  return { port: 0, db, close: async () => { current = null; } };
 }
 
 export interface HttpResponse {
   status: number;
-  headers: Record<string, string | string[] | undefined>;
+  headers: Record<string, string | undefined>;
   body: string;
   json<T = any>(): T;
 }
 
-export function http(port: number, options: { method?: string; path: string; host?: string; headers?: Record<string, string>; body?: unknown }): Promise<HttpResponse> {
-  return new Promise((resolve, reject) => {
-    const payload = options.body === undefined ? undefined : typeof options.body === 'string' ? options.body : JSON.stringify(options.body);
-    const req = request({
-      host: '127.0.0.1',
-      port,
-      method: options.method ?? 'GET',
-      path: options.path,
-      headers: {
-        host: options.host ?? 'admin.test',
-        ...(payload !== undefined ? { 'content-type': 'application/json', 'content-length': Buffer.byteLength(payload).toString() } : {}),
-        ...options.headers,
-      },
-    }, (res) => {
-      const chunks: Buffer[] = [];
-      res.on('data', (chunk: Buffer) => chunks.push(chunk));
-      res.on('end', () => {
-        const body = Buffer.concat(chunks).toString('utf8');
-        resolve({ status: res.statusCode ?? 0, headers: res.headers, body, json: () => JSON.parse(body) });
-      });
-    });
-    req.on('error', reject);
-    if (payload !== undefined) req.write(payload);
-    req.end();
-  });
+/** Sends a request through the app. x-forwarded-for is used as the client IP (like CF-Connecting-IP). */
+export async function http(_port: number, options: { method?: string; path: string; host?: string; headers?: Record<string, string>; body?: unknown }): Promise<HttpResponse> {
+  if (!current) throw new Error('startServer() first');
+  const payload = options.body === undefined ? undefined : typeof options.body === 'string' ? options.body : JSON.stringify(options.body);
+  const headers: Record<string, string> = { ...(payload !== undefined ? { 'content-type': 'application/json' } : {}), ...options.headers };
+  const request = new Request(`http://${options.host ?? 'admin.test'}${options.path}`, { method: options.method ?? 'GET', headers, body: payload });
+  const response = await current.handle(request, { ip: headers['x-forwarded-for'] ?? '127.0.0.1' });
+  const body = await response.text();
+  const out: Record<string, string | undefined> = {};
+  response.headers.forEach((value, key) => { out[key] = value; });
+  return { status: response.status, headers: out, body, json: () => JSON.parse(body) };
 }

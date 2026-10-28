@@ -9,7 +9,7 @@ flowchart LR
     I --- A[Android app\ntwig-links]
     A --- W[Website\ntwig.js]
   end
-  subgraph Server["Twig server (one Node process)"]
+  subgraph Server["Twig server (Cloudflare Worker, or Node 22)"]
     R[Link router\nlinks-handler.ts + routing.ts]
     M[Matching\nmatching.ts]
     S[SDK API /v1\nsessions.ts]
@@ -18,7 +18,7 @@ flowchart LR
     Q[QR encoder\nqr.ts]
     X[AASA + assetlinks\nassociation.ts]
   end
-  DB[(SQLite)]
+  DB[(D1 / SQLite)]
   User((User taps link)) --> R
   R --> DB
   Clients --> S --> M --> DB
@@ -39,9 +39,11 @@ flowchart LR
 | `server/src/qr.ts` | QR encoder (versions 1–40, SVG and PNG), no dependencies |
 | `server/src/events.ts` | Event log and signed, retried webhooks |
 | `server/src/analytics.ts` | Summaries, time series, breakdowns, per-link funnels |
-| `server/src/auth.ts` | Team accounts (scrypt), sessions, CSRF guard, setup token |
+| `server/src/auth.ts` | Team accounts (PBKDF2), sessions, CSRF guard, setup token |
+| `server/src/db.ts` | D1-style async database API; `sqlite-d1.ts` provides it on Node |
+| `server/src/worker.ts` / `main.ts` | Cloudflare Worker entry (fetch + cron) / Node entry |
 
-## Data model (SQLite)
+## Data model (Cloudflare D1 = SQLite; schema in `server/migrations/`)
 
 | Table | Key columns |
 |-------|-------------|
@@ -118,9 +120,10 @@ Each click can be claimed once.
 
 ## Security
 
-* Dashboard: scrypt passwords, HTTP-only `SameSite=Lax` session cookies, `X-Twig-Client` header on every state-changing request (CSRF), login rate limit, owner / admin / member roles.
+* Dashboard: PBKDF2-SHA256 passwords, HTTP-only `SameSite=Lax` session cookies, `X-Twig-Client` header on every state-changing request (CSRF), login rate limit, owner / admin / member roles.
 * Server API: `Authorization: Bearer tw_secret_…` scoped to one app; only the SHA-256 of secrets is stored; rotation from the dashboard.
 * Public SDK API: CORS `*`, per-IP token-bucket rate limit, payload size limits.
 * Pages: escaped output, strict CSP with per-response nonces, `frame-ancestors 'none'`.
 * Webhooks: `X-Twig-Signature: t=…,v1=HMAC-SHA256(secret, "t.body")`.
-* Caddy issues certificates only for domains Twig confirms through `/caddy/ask`.
+* HTTPS on every hostname is provided by Cloudflare (`workers.dev` or custom domains).
+* All crypto uses WebCrypto, so the same code runs on Workers and Node.

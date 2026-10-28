@@ -389,7 +389,7 @@
   function tabDomains(app, el) {
     var primary = app.domains.filter(function (d) { return d.kind === 'primary'; }).map(function (d) { return d.host; }).join('\n');
     var alternate = app.domains.filter(function (d) { return d.kind === 'alternate'; }).map(function (d) { return d.host; })[0] || '';
-    el.innerHTML = '<form id="domains" class="panel"><h2>Link domains</h2><p class="muted">Point each domain (DNS A/AAAA or CNAME) at your Twig server behind HTTPS. The alternate domain gives iOS Universal Links a second chance from the interstitial page.</p>' +
+    el.innerHTML = '<form id="domains" class="panel"><h2>Link domains</h2><p class="muted">Use a pair of free Worker hostnames per app, e.g. twig.&lt;account&gt;.workers.dev as primary and twig-alt.&lt;account&gt;.workers.dev as alternate (or custom domains routed to the Worker). The alternate domain gives iOS Universal Links a second chance from the interstitial page.</p>' +
       '<div class="fields"><div class="field"><label>Primary domains <span class="muted">(one per line; the first is used in new links)</span></label><textarea name="primary">' + h(primary) + '</textarea></div>' +
       '<div class="field"><label>Alternate domain</label><input name="alternate" value="' + h(alternate) + '"></div></div><button>Save domains</button><p class="error"></p></form>' +
       '<div class="panel"><h2>Association files</h2><p class="muted">Served automatically at <code>/.well-known/apple-app-site-association</code> and <code>/.well-known/assetlinks.json</code> on every domain above. Fill in iOS and Android details in Settings first.</p><div id="assoc">Loading…</div></div>';

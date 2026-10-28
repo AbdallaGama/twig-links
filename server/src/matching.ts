@@ -1,4 +1,3 @@
-import { isIP } from 'node:net';
 import type { App } from './apps.ts';
 import { appForHost } from './apps.ts';
 import type { Db } from './db.ts';
@@ -42,6 +41,15 @@ export interface Attribution {
 }
 
 /** IPv4 → /24, IPv6 → /64. Carrier NAT and IPv6 privacy addresses make the prefix useful. */
+function isIP(ip: string): 4 | 6 | 0 {
+  if (/^(25[0-5]|2[0-4]\d|1?\d?\d)(\.(25[0-5]|2[0-4]\d|1?\d?\d)){3}$/.test(ip)) return 4;
+  if (ip.includes(':') && /^[0-9a-fA-F:]+$/.test(ip) && (ip.match(/::/g) ?? []).length <= 1) {
+    const groups = ip.split(':').filter(Boolean);
+    if (groups.length <= 8 && groups.every((g) => g.length <= 4)) return 6;
+  }
+  return 0;
+}
+
 export function ipPrefix(ip: string): string | null {
   const version = isIP(ip);
   if (version === 4) return ip.split('.').slice(0, 3).join('.');
@@ -55,10 +63,10 @@ export function ipPrefix(ip: string): string | null {
   return null;
 }
 
-export function ipHashes(secret: string, ip: string): { ipHash: string | null; prefixHash: string | null } {
+export async function ipHashes(secret: string, ip: string): Promise<{ ipHash: string | null; prefixHash: string | null }> {
   if (!ip) return { ipHash: null, prefixHash: null };
   const prefix = ipPrefix(ip);
-  return { ipHash: hmacHex(secret, `ip:${ip}`), prefixHash: prefix ? hmacHex(secret, `prefix:${prefix}`) : null };
+  return { ipHash: await hmacHex(secret, `ip:${ip}`), prefixHash: prefix ? await hmacHex(secret, `prefix:${prefix}`) : null };
 }
 
 export interface RecordClickInput {
@@ -75,12 +83,12 @@ export interface RecordClickInput {
   secret: string;
 }
 
-export function recordClick(db: Db, input: RecordClickInput): string {
+export async function recordClick(db: Db, input: RecordClickInput): Promise<string> {
   const id = newClickId();
-  const { ipHash, prefixHash } = ipHashes(input.secret, input.ip);
+  const { ipHash, prefixHash } = await ipHashes(input.secret, input.ip);
   const windowOverride = Number(input.resolved.data.$match_duration);
   const matchWindow = Number.isFinite(windowOverride) && windowOverride > 0 ? Math.min(windowOverride, 30 * 86400) : input.app.config.matchWindowSec;
-  db.run(
+  await db.run(
     `INSERT INTO clicks (id, app_id, link_id, link_data, link_url, created_at, match_window_sec, ip_hash, ip_prefix_hash,
        os, os_version, model, browser, in_app, language, country, browser_id, referrer, route)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -91,12 +99,12 @@ export function recordClick(db: Db, input: RecordClickInput): string {
   return id;
 }
 
-export function updateClickRoute(db: Db, clickId: string, route: string): void {
-  db.run('UPDATE clicks SET route = ? WHERE id = ?', route, clickId);
+export async function updateClickRoute(db: Db, clickId: string, route: string): Promise<void> {
+  await db.run('UPDATE clicks SET route = ? WHERE id = ?', route, clickId);
 }
 
-function getClick(db: Db, appId: string, clickId: string): ClickRecord | undefined {
-  return db.get<ClickRecord>('SELECT * FROM clicks WHERE id = ? AND app_id = ?', clickId, appId);
+async function getClick(db: Db, appId: string, clickId: string): Promise<ClickRecord | undefined> {
+  return await db.get<ClickRecord>('SELECT * FROM clicks WHERE id = ? AND app_id = ?', clickId, appId);
 }
 
 function attributionFromClick(click: ClickRecord, matchType: MatchType, guaranteed: boolean): Attribution {
@@ -111,8 +119,8 @@ function attributionFromClick(click: ClickRecord, matchType: MatchType, guarante
   };
 }
 
-function claim(db: Db, click: ClickRecord, deviceId: string): void {
-  db.run('UPDATE clicks SET claimed_at = COALESCE(claimed_at, ?), claimed_by = COALESCE(claimed_by, ?) WHERE id = ?', Date.now(), deviceId, click.id);
+async function claim(db: Db, click: ClickRecord, deviceId: string): Promise<void> {
+  await db.run('UPDATE clicks SET claimed_at = COALESCE(claimed_at, ?), claimed_by = COALESCE(claimed_by, ?) WHERE id = ?', Date.now(), deviceId, click.id);
 }
 
 function parseUrl(value: string | null | undefined): URL | null {
@@ -136,24 +144,24 @@ export function clickIdFrom(text: string | null | undefined): string | null {
  * Resolves a URL that opened the app (Universal Link, App Link, URI scheme or pasteboard
  * content). Returns null for URLs that do not belong to this app.
  */
-function attributeUrl(db: Db, app: App, rawUrl: string, matchType: MatchType, deviceId: string, maxClickAgeMs: number | null): Attribution | null {
+async function attributeUrl(db: Db, app: App, rawUrl: string, matchType: MatchType, deviceId: string, maxClickAgeMs: number | null): Promise<Attribution | null> {
   const url = parseUrl(rawUrl);
   if (!url) return null;
 
   const clickId = clickIdFrom(url.search);
   if (clickId) {
-    const click = getClick(db, app.id, clickId);
+    const click = await getClick(db, app.id, clickId);
     if (click && (maxClickAgeMs === null || Date.now() - click.created_at <= maxClickAgeMs)) {
-      claim(db, click, deviceId);
+      await claim(db, click, deviceId);
       return attributionFromClick(click, matchType === 'uri_scheme' ? 'click_id' : matchType, true);
     }
   }
 
   if (url.protocol === 'http:' || url.protocol === 'https:') {
-    const owner = appForHost(db, url.hostname.toLowerCase());
+    const owner = await appForHost(db, url.hostname.toLowerCase());
     if (!owner || owner.app.id !== app.id) return null;
     if (matchType === 'pasteboard') return null; // pasteboard links must carry a click id
-    const resolved = resolvePath(db, app, url.pathname, url.searchParams, canonicalUrl(url));
+    const resolved = await resolvePath(db, app, url.pathname, url.searchParams, canonicalUrl(url));
     if (!resolved) return null;
     return { matchType, guaranteed: true, data: publicLinkData(resolved), linkId: resolved.link?.id ?? null, clickId: null, clickedAt: null, url: resolved.url };
   }
@@ -180,11 +188,11 @@ export interface FingerprintInput {
  * platform and IP (exact or prefix) inside the click's match window, then scores OS
  * version, model, language and recency. Never "guaranteed".
  */
-export function fingerprintMatch(db: Db, app: App, input: FingerprintInput, secret: string, deviceId: string, notBefore: number | null = null, now = Date.now()): Attribution | null {
-  const { ipHash, prefixHash } = ipHashes(secret, input.ip);
+export async function fingerprintMatch(db: Db, app: App, input: FingerprintInput, secret: string, deviceId: string, notBefore: number | null = null, now = Date.now()): Promise<Attribution | null> {
+  const { ipHash, prefixHash } = await ipHashes(secret, input.ip);
   if (!ipHash) return null;
   const since = Math.max(now - 30 * 86400 * 1000, notBefore ?? 0);
-  const candidates = db.all<ClickRecord>(
+  const candidates = await db.all<ClickRecord>(
     `SELECT * FROM clicks WHERE app_id = ? AND claimed_at IS NULL AND created_at >= ?
        AND (ip_hash = ? OR (ip_prefix_hash IS NOT NULL AND ip_prefix_hash = ?))
      ORDER BY created_at DESC LIMIT 50`,
@@ -212,7 +220,7 @@ export function fingerprintMatch(db: Db, app: App, input: FingerprintInput, secr
     if (!best || score > best.score) best = { click, score };
   }
   if (!best || best.score < 45) return null;
-  claim(db, best.click, deviceId);
+  await claim(db, best.click, deviceId);
   return attributionFromClick(best.click, 'fingerprint', false);
 }
 
@@ -230,53 +238,53 @@ export interface AttributeInput {
 }
 
 /** Applies every signal in order of determinism. */
-export function attribute(db: Db, app: App, input: AttributeInput, secret: string, deviceId: string): Attribution | null {
+export async function attribute(db: Db, app: App, input: AttributeInput, secret: string, deviceId: string): Promise<Attribution | null> {
   if (input.linkClickId && /^\d{10,30}$/.test(input.linkClickId)) {
-    const click = getClick(db, app.id, input.linkClickId);
+    const click = await getClick(db, app.id, input.linkClickId);
     if (click) {
-      claim(db, click, deviceId);
+      await claim(db, click, deviceId);
       return attributionFromClick(click, 'click_id', true);
     }
   }
   if (input.linkUrl) {
     const isScheme = !/^https?:/i.test(input.linkUrl);
-    const result = attributeUrl(db, app, input.linkUrl, isScheme ? 'uri_scheme' : 'universal_link', deviceId, null);
+    const result = await attributeUrl(db, app, input.linkUrl, isScheme ? 'uri_scheme' : 'universal_link', deviceId, null);
     if (result) return result;
   }
   if (input.installReferrer && input.isFirstSession) {
     const clickId = clickIdFrom(input.installReferrer);
-    const click = clickId ? getClick(db, app.id, clickId) : undefined;
+    const click = clickId ? await getClick(db, app.id, clickId) : undefined;
     if (click) {
-      claim(db, click, deviceId);
+      await claim(db, click, deviceId);
       return attributionFromClick(click, 'install_referrer', true);
     }
   }
   if (input.pasteboardUrl && input.isFirstSession) {
-    const result = attributeUrl(db, app, input.pasteboardUrl, 'pasteboard', deviceId, app.config.matchWindowSec * 1000 * 12);
+    const result = await attributeUrl(db, app, input.pasteboardUrl, 'pasteboard', deviceId, app.config.matchWindowSec * 1000 * 12);
     if (result) return result;
   }
   if (input.allowFingerprint && !input.linkUrl) {
-    return fingerprintMatch(db, app, input.fingerprint, secret, deviceId, input.fingerprintNotBefore);
+    return await fingerprintMatch(db, app, input.fingerprint, secret, deviceId, input.fingerprintNotBefore);
   }
   return null;
 }
 
 /** Web SDK: _twig_match_id from the landing URL, or the newest click from the same browser cookie. */
-export function attributeWeb(db: Db, app: App, matchId: string | null, browserId: string | null, deviceId: string): Attribution | null {
+export async function attributeWeb(db: Db, app: App, matchId: string | null, browserId: string | null, deviceId: string): Promise<Attribution | null> {
   if (matchId && /^\d{10,30}$/.test(matchId)) {
-    const click = getClick(db, app.id, matchId);
+    const click = await getClick(db, app.id, matchId);
     if (click) {
-      claim(db, click, deviceId);
+      await claim(db, click, deviceId);
       return attributionFromClick(click, 'web_match_id', true);
     }
   }
   if (browserId) {
-    const click = db.get<ClickRecord>(
+    const click = await db.get<ClickRecord>(
       'SELECT * FROM clicks WHERE app_id = ? AND browser_id = ? AND claimed_at IS NULL AND created_at >= ? ORDER BY created_at DESC LIMIT 1',
       app.id, browserId, Date.now() - app.config.matchWindowSec * 1000,
     );
     if (click) {
-      claim(db, click, deviceId);
+      await claim(db, click, deviceId);
       return attributionFromClick(click, 'web_match_id', true);
     }
   }
@@ -288,6 +296,6 @@ export function tagsFromData(data: LinkData): { channel: string | null; feature:
   return { channel: pick('~channel'), feature: pick('~feature'), campaign: pick('~campaign') };
 }
 
-export function purgeOldClicks(db: Db, retentionDays: number): number {
-  return db.run('DELETE FROM clicks WHERE created_at < ?', Date.now() - retentionDays * 86400 * 1000).changes;
+export async function purgeOldClicks(db: Db, retentionDays: number): Promise<number> {
+  return (await db.run('DELETE FROM clicks WHERE created_at < ?', Date.now() - retentionDays * 86400 * 1000)).changes;
 }

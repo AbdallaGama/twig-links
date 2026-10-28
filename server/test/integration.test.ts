@@ -40,11 +40,12 @@ describe('Twig end to end', () => {
   });
 
   it('creates the owner and signs in', async () => {
-    const token = h.db.get<{ value: string }>("SELECT value FROM meta WHERE key = 'setup_token'")?.value
-      ?? (h.db.run("INSERT INTO meta (key, value) VALUES ('setup_token', 'tok_test')"), 'tok_test');
+    await h.db.run("INSERT OR REPLACE INTO meta (key, value) VALUES ('setup_token', 'tok_test')");
+    const token = 'tok_test';
     const res = await http(h.port, { method: 'POST', path: '/api/auth/setup', body: { setup_token: token, email: 'owner@shop.test', name: 'Owner', password: 'correct horse battery' } });
     assert.equal(res.status, 200, res.body);
     cookie = String(res.headers['set-cookie']).split(';')[0]!;
+    assert.match(cookie, /^twig_session=/);
     const me = await dash('/api/auth/state');
     assert.equal(me.json().user.role, 'owner');
   });
@@ -114,7 +115,7 @@ describe('Twig end to end', () => {
     assert.equal(res.status, 200);
     assert.match(res.body, /<meta property="og:title" content="Red Shoes">/);
     assert.match(res.body, /<meta property="al:ios:app_store_id" content="123456789">/);
-    const clicks = h.db.get<{ n: number }>('SELECT COUNT(*) AS n FROM clicks')!.n;
+    const clicks = (await h.db.get<{ n: number }>('SELECT COUNT(*) AS n FROM clicks'))!.n;
     assert.equal(clicks, 0);
   });
 
@@ -149,8 +150,8 @@ describe('Twig end to end', () => {
     assert.match(res.body, new RegExp(`https://${ALT_HOST.replace(/\./g, '\\.')}/${shortCode}\\?__twig_flow=store&amp;_twig_match_id=\\d+`));
     assert.match(String(res.headers['content-security-policy']), /script-src 'nonce-/);
 
-    // The server only sees X-Forwarded-For when TRUST_PROXY is on; the harness connects from 127.0.0.1.
-    const open = await sdk('/v1/open', { is_first_launch: true, hardware_id: 'ios-idfv-1', os: 'iOS', os_version: '18.5.1', model: 'iPhone15,2', locale: 'en_US' }, '127.0.0.1');
+    // Same network as the click (the harness passes x-forwarded-for as the client IP).
+    const open = await sdk('/v1/open', { is_first_launch: true, hardware_id: 'ios-idfv-1', os: 'iOS', os_version: '18.5.1', model: 'iPhone15,2', locale: 'en_US' }, '198.51.100.77');
     const data = open.json().data;
     assert.equal(data['+clicked_link'], true);
     assert.equal(data['+match_type'], 'fingerprint');
@@ -163,11 +164,11 @@ describe('Twig end to end', () => {
   });
 
   it('follows the store hop on the alternate domain without counting a second click', async () => {
-    const before = h.db.get<{ n: number }>('SELECT COUNT(*) AS n FROM clicks')!.n;
+    const before = (await h.db.get<{ n: number }>('SELECT COUNT(*) AS n FROM clicks'))!.n;
     const res = await click(`/${shortCode}?__twig_flow=store&_twig_match_id=1730000000000123456`, UA.iosSafari, {}, ALT_HOST);
     assert.equal(res.status, 307);
     assert.equal(res.headers.location, 'https://apps.apple.com/app/id123456789');
-    assert.equal(h.db.get<{ n: number }>('SELECT COUNT(*) AS n FROM clicks')!.n, before);
+    assert.equal((await h.db.get<{ n: number }>('SELECT COUNT(*) AS n FROM clicks'))!.n, before);
   });
 
   it('resolves pasteboard links (NativeLink) deterministically', async () => {
@@ -213,7 +214,7 @@ describe('Twig end to end', () => {
     const event = await sdk('/v1/event', { device_token: iosDevice, name: 'purchase', revenue: 59.9, currency: 'usd', data: { sku: 'A1' } });
     assert.equal(event.status, 200, event.body);
     assert.equal(event.json().attributed, true);
-    const row = h.db.get<{ name: string; currency: string; revenue: number }>('SELECT name, currency, revenue FROM events WHERE id = ?', event.json().event_id)!;
+    const row = (await h.db.get<{ name: string; currency: string; revenue: number }>('SELECT name, currency, revenue FROM events WHERE id = ?', event.json().event_id))!;
     assert.deepEqual({ ...row }, { name: 'PURCHASE', currency: 'USD', revenue: 59.9 });
     const unknown = await sdk('/v1/event', { device_token: 'dv_missing', name: 'x' });
     assert.equal(unknown.status, 400);
@@ -268,7 +269,7 @@ describe('Twig end to end', () => {
     await click('/summer-sale', UA.windowsEdge);
     await deliverDueWebhooks(h.db);
     assert.equal(received.length, 0, 'first attempt failed');
-    h.db.run("UPDATE webhook_deliveries SET next_attempt_at = 0 WHERE status = 'pending'");
+    await h.db.run("UPDATE webhook_deliveries SET next_attempt_at = 0 WHERE status = 'pending'");
     await deliverDueWebhooks(h.db);
     receiver.close();
 
@@ -289,12 +290,6 @@ describe('Twig end to end', () => {
     assert.equal(forbidden.status, 403);
     const wrong = await http(h.port, { method: 'POST', path: '/api/auth/login', body: { email: 'dev@shop.test', password: 'wrong password!!' } });
     assert.equal(wrong.status, 401);
-  });
-
-  it('only lets registered domains obtain TLS certificates through Caddy', async () => {
-    assert.equal((await http(h.port, { path: `/caddy/ask?domain=${LINK_HOST}` })).status, 200);
-    assert.equal((await http(h.port, { path: '/caddy/ask?domain=admin.test' })).status, 200);
-    assert.equal((await http(h.port, { path: '/caddy/ask?domain=evil.test' })).status, 404);
   });
 
   it('rejects unknown keys and domains taken by another app', async () => {

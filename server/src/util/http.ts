@@ -1,4 +1,7 @@
-import type { IncomingMessage, ServerResponse } from 'node:http';
+/**
+ * Minimal router and helpers on the standard Fetch API (Request/Response), shared by the
+ * Cloudflare Worker entry (worker.ts) and the Node entry (main.ts).
+ */
 
 export class HttpError extends Error {
   readonly status: number;
@@ -12,8 +15,7 @@ export class HttpError extends Error {
 }
 
 export interface Ctx {
-  req: IncomingMessage;
-  res: ServerResponse;
+  req: Request;
   method: string;
   url: URL;
   /** Lowercased host without port. */
@@ -24,6 +26,10 @@ export interface Ctx {
   cookies: Record<string, string>;
   params: Record<string, string>;
   body<T = Record<string, unknown>>(): Promise<T>;
+  /** Set by the send helpers below; returned by the dispatcher. */
+  response: Response | null;
+  /** Lets work continue after the response (Workers waitUntil; awaited on Node). */
+  defer(task: Promise<unknown>): void;
 }
 
 export type Handler = (ctx: Ctx) => unknown;
@@ -57,8 +63,9 @@ export class Router {
       for (let i = 0; i < route.parts.length; i++) {
         const part = route.parts[i]!;
         const segment = segments[i]!;
-        if (part.startsWith(':')) params[part.slice(1)] = decodeURIComponent(segment);
-        else if (part !== segment) { ok = false; break; }
+        if (part.startsWith(':')) {
+          try { params[part.slice(1)] = decodeURIComponent(segment); } catch { ok = false; break; }
+        } else if (part !== segment) { ok = false; break; }
       }
       if (ok) return { handler: route.handler, params };
     }
@@ -68,38 +75,39 @@ export class Router {
 
 const MAX_BODY_BYTES = 1024 * 1024;
 
-export function createCtx(req: IncomingMessage, res: ServerResponse, trustProxy: boolean): Ctx {
-  const forwardedHost = trustProxy ? header(req, 'x-forwarded-host') : undefined;
-  const rawHost = (forwardedHost ?? req.headers.host ?? 'localhost').split(',')[0]!.trim();
-  const proto = trustProxy ? (header(req, 'x-forwarded-proto') ?? 'http').split(',')[0]!.trim() : 'http';
-  const url = new URL(req.url ?? '/', `${proto}://${rawHost}`);
-  const forwardedFor = trustProxy ? header(req, 'x-forwarded-for') : undefined;
-  const ip = (forwardedFor?.split(',')[0]?.trim() || req.socket.remoteAddress || '').replace(/^::ffff:/, '');
+export function createCtx(req: Request, ip: string, trustProxy: boolean, defer: (task: Promise<unknown>) => void): Ctx {
+  const url = new URL(req.url);
+  if (trustProxy) {
+    const forwardedHost = req.headers.get('x-forwarded-host')?.split(',')[0]?.trim();
+    const forwardedProto = req.headers.get('x-forwarded-proto')?.split(',')[0]?.trim();
+    if (forwardedHost) url.host = forwardedHost;
+    if (forwardedProto === 'https' || forwardedProto === 'http') url.protocol = `${forwardedProto}:`;
+  }
   let cached: Promise<unknown> | null = null;
   return {
     req,
-    res,
-    method: req.method ?? 'GET',
+    method: req.method,
     url,
     host: url.hostname.toLowerCase(),
     path: url.pathname,
     query: url.searchParams,
-    ip,
-    cookies: parseCookies(req.headers.cookie),
+    ip: ip.replace(/^::ffff:/, ''),
+    cookies: parseCookies(req.headers.get('cookie')),
     params: {},
     body<T>() {
       cached ??= readBody(req);
       return cached as Promise<T>;
     },
+    response: null,
+    defer,
   };
 }
 
-export function header(req: IncomingMessage, name: string): string | undefined {
-  const value = req.headers[name];
-  return Array.isArray(value) ? value[0] : value;
+export function header(req: Request, name: string): string | undefined {
+  return req.headers.get(name) ?? undefined;
 }
 
-function parseCookies(text: string | undefined): Record<string, string> {
+function parseCookies(text: string | null): Record<string, string> {
   const out: Record<string, string> = {};
   if (!text) return out;
   for (const pair of text.split(';')) {
@@ -115,20 +123,14 @@ function parseCookies(text: string | undefined): Record<string, string> {
   return out;
 }
 
-async function readBody(req: IncomingMessage): Promise<unknown> {
-  const chunks: Buffer[] = [];
-  let size = 0;
-  for await (const chunk of req) {
-    size += (chunk as Buffer).length;
-    if (size > MAX_BODY_BYTES) throw new HttpError(413, 'payload_too_large');
-    chunks.push(chunk as Buffer);
-  }
-  const text = Buffer.concat(chunks).toString('utf8');
+async function readBody(req: Request): Promise<unknown> {
+  const declared = Number(req.headers.get('content-length') ?? 0);
+  if (declared > MAX_BODY_BYTES) throw new HttpError(413, 'payload_too_large');
+  const text = await req.text();
+  if (text.length > MAX_BODY_BYTES) throw new HttpError(413, 'payload_too_large');
   if (text.trim() === '') return {};
-  const type = (req.headers['content-type'] ?? '').toLowerCase();
-  if (type.includes('application/x-www-form-urlencoded')) {
-    return Object.fromEntries(new URLSearchParams(text));
-  }
+  const type = (req.headers.get('content-type') ?? '').toLowerCase();
+  if (type.includes('application/x-www-form-urlencoded')) return Object.fromEntries(new URLSearchParams(text));
   try {
     return JSON.parse(text);
   } catch {
@@ -136,37 +138,28 @@ async function readBody(req: IncomingMessage): Promise<unknown> {
   }
 }
 
+type Body = ConstructorParameters<typeof Response>[0];
+
 const BASE_HEADERS = { 'x-content-type-options': 'nosniff' };
 
+function respond(ctx: Ctx, status: number, body: Body, headers: Record<string, string>): void {
+  ctx.response = new Response(ctx.method === 'HEAD' ? null : body, { status, headers: { ...BASE_HEADERS, ...headers } });
+}
+
 export function sendJson(ctx: Ctx, status: number, body: unknown, headers: Record<string, string> = {}): void {
-  const payload = JSON.stringify(body);
-  ctx.res.writeHead(status, {
-    ...BASE_HEADERS,
-    'content-type': 'application/json; charset=utf-8',
-    'cache-control': 'no-store',
-    ...headers,
-  });
-  ctx.res.end(ctx.method === 'HEAD' ? undefined : payload);
+  respond(ctx, status, JSON.stringify(body), { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', ...headers });
 }
 
 export function sendHtml(ctx: Ctx, status: number, html: string, headers: Record<string, string> = {}): void {
-  ctx.res.writeHead(status, {
-    ...BASE_HEADERS,
-    'content-type': 'text/html; charset=utf-8',
-    'cache-control': 'no-store',
-    ...headers,
-  });
-  ctx.res.end(ctx.method === 'HEAD' ? undefined : html);
+  respond(ctx, status, html, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', ...headers });
 }
 
-export function sendBytes(ctx: Ctx, status: number, body: string | Buffer, contentType: string, headers: Record<string, string> = {}): void {
-  ctx.res.writeHead(status, { ...BASE_HEADERS, 'content-type': contentType, ...headers });
-  ctx.res.end(ctx.method === 'HEAD' ? undefined : body);
+export function sendBytes(ctx: Ctx, status: number, body: string | Uint8Array, contentType: string, headers: Record<string, string> = {}): void {
+  respond(ctx, status, body as Body, { 'content-type': contentType, ...headers });
 }
 
 export function redirect(ctx: Ctx, location: string, status = 307, headers: Record<string, string> = {}): void {
-  ctx.res.writeHead(status, { ...BASE_HEADERS, location, 'cache-control': 'no-store', ...headers });
-  ctx.res.end();
+  respond(ctx, status, null, { location, 'cache-control': 'no-store', ...headers });
 }
 
 export function setCookieHeader(name: string, value: string, options: { maxAgeSec: number; secure: boolean; httpOnly?: boolean; sameSite?: 'Lax' | 'None' | 'Strict' }): string {

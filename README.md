@@ -2,30 +2,43 @@
 
 Twig is our own replacement for Branch.io: Universal Links, Android App Links, deferred deep
 linking, short links, QR codes, smart banners, attribution, analytics and webhooks — running on
-**our** server, with **no per-user fees** for us or our customers.
+**Cloudflare's free plan** (Workers + D1, no credit card), with **no per-user fees** for us or our
+customers.
 
 ```
 repo/
-├── server/                 Link server + API + dashboard (Node 22, TypeScript, SQLite, zero runtime deps)
+├── server/                 Link server + API + dashboard (TypeScript; Cloudflare Workers + D1, or Node 22)
 ├── sdk/flutter/twig_links  Flutter plugin (Dart core + Kotlin/Swift capture layer)
 ├── sdk/ios/TwigLinks       Native iOS SDK (Swift Package / CocoaPods)
 ├── sdk/android             Native Android SDK (Kotlin library / AAR)
 ├── sdk/web/twig.js         Web SDK + smart banner (served by the server at /sdk/twig.js)
-├── deploy/                 docker-compose + Caddy (automatic HTTPS for every link domain)
 └── docs/                   Reverse-engineering report, architecture, integration and deployment guides
 ```
 
-## Quick start (local)
+## Deploy to Cloudflare (free)
 
 ```bash
-cd server && npm start
+cd server && npm install && npx wrangler login && npx wrangler d1 create twig
+```
+
+Paste the database id into `server/wrangler.toml`, then:
+
+```bash
+cd server && npm run cf:deploy
+```
+
+Link domains are free Worker hostnames: `twig.<account>.workers.dev` (primary) and
+`twig-alt.<account>.workers.dev` (alternate). See [docs/04-deployment.md](docs/04-deployment.md).
+
+## Run locally
+
+```bash
+cd server && npm run dev
 ```
 
 Open http://localhost:8080/dashboard, create the owner with the setup token printed in the log
 (or set `ADMIN_EMAIL` / `ADMIN_PASSWORD`), create an app, add its link domain, fill in the iOS
 and Android details, and integrate an SDK from the app's **Integrate** tab.
-
-Node 22.18+ is the only requirement; there is nothing to `npm install` for production.
 
 ## How a click is routed
 
@@ -47,7 +60,7 @@ this design is based on.
 ## Tests
 
 ```bash
-cd server && npm test && npm run typecheck                       # 46 server tests
+cd server && npm test && npm run typecheck                       # 45 server tests
 cd sdk/flutter/twig_links && flutter test && flutter analyze     # 10 Flutter tests
 swift test                                                       # 7 iOS SDK tests (repo root)
 cd sdk/android && ./gradlew :twig-links:testDebugUnitTest        # 8 Android SDK tests
@@ -58,6 +71,6 @@ cd sdk/android && ./gradlew :twig-links:testDebugUnitTest        # 8 Android SDK
 1. [Reverse-engineering report](docs/01-reverse-engineering-report.md) — how Branch.io works, with evidence
 2. [Architecture](docs/02-architecture.md) — components, data model, wire protocol, matching
 3. [Integration guide](docs/03-integration-guide.md) — Flutter, iOS, Android, Web, server API
-4. [Deployment](docs/04-deployment.md) — Docker, Caddy, DNS, custom domains, backups
+4. [Deployment](docs/04-deployment.md) — Cloudflare Workers free plan, D1, limits, domains
 
 Licensed under MIT.

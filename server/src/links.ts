@@ -103,7 +103,7 @@ export function normalizeData(input: unknown): LinkData {
       data[key] = value;
     }
   }
-  if (Buffer.byteLength(JSON.stringify(data)) > MAX_DATA_BYTES) throw new HttpError(413, 'link_data_too_large');
+  if (new TextEncoder().encode(JSON.stringify(data)).length > MAX_DATA_BYTES) throw new HttpError(413, 'link_data_too_large');
   return data;
 }
 
@@ -129,35 +129,35 @@ export interface CreateLinkInput {
   dedupe?: boolean;
 }
 
-export function createLink(db: Db, app: App, input: CreateLinkInput): StoredLink {
+export async function createLink(db: Db, app: App, input: CreateLinkInput): Promise<StoredLink> {
   const data = normalizeData(input.data);
   const tags = normalizeTags({ ...input });
   const alias = str(input.alias, 128);
-  const dedupeHash = alias ? null : sha256Hex(canonical({ data, ...tags }));
+  const dedupeHash = alias ? null : await sha256Hex(canonical({ data, ...tags }));
 
   if (alias) {
     if (!ALIAS_RE.test(alias) || RESERVED_PATHS.has(alias.toLowerCase())) throw new HttpError(400, 'invalid_alias');
-    const existing = db.get<LinkRow>('SELECT * FROM links WHERE app_id = ? AND code = ?', app.id, alias);
+    const existing = await db.get<LinkRow>('SELECT * FROM links WHERE app_id = ? AND code = ?', app.id, alias);
     if (existing) {
       const link = toLink(existing);
       if (canonical(link.data) === canonical(data)) return link;
       throw new HttpError(409, 'alias_taken', `Alias "${alias}" is already used with different data`);
     }
   } else if (input.dedupe) {
-    const existing = db.get<LinkRow>('SELECT * FROM links WHERE app_id = ? AND dedupe_hash = ? AND disabled = 0 ORDER BY id LIMIT 1', app.id, dedupeHash);
+    const existing = await db.get<LinkRow>('SELECT * FROM links WHERE app_id = ? AND dedupe_hash = ? AND disabled = 0 ORDER BY id LIMIT 1', app.id, dedupeHash);
     if (existing) return toLink(existing);
   }
 
   for (let attempt = 0; attempt < 5; attempt++) {
     const code = alias ?? randomBase62(attempt < 3 ? 9 : 12);
     try {
-      const result = db.run(
+      const result = await db.run(
         `INSERT INTO links (app_id, code, data, channel, feature, campaign, stage, tags, is_alias, dedupe_hash, source, created_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         app.id, code, JSON.stringify(data), tags.channel, tags.feature, tags.campaign, tags.stage,
         JSON.stringify(tags.tags), alias ? 1 : 0, dedupeHash, input.source, Date.now(),
       );
-      return getLinkById(db, result.lastInsertRowid)!;
+      return (await getLinkById(db, result.lastInsertRowid))!;
     } catch (error) {
       if (alias || !String(error).includes('UNIQUE')) throw error;
     }
@@ -165,43 +165,43 @@ export function createLink(db: Db, app: App, input: CreateLinkInput): StoredLink
   throw new HttpError(500, 'code_generation_failed');
 }
 
-export function getLinkById(db: Db, id: number): StoredLink | null {
-  const row = db.get<LinkRow>('SELECT * FROM links WHERE id = ?', id);
+export async function getLinkById(db: Db, id: number): Promise<StoredLink | null> {
+  const row = await db.get<LinkRow>('SELECT * FROM links WHERE id = ?', id);
   return row ? toLink(row) : null;
 }
 
-export function getLinkByCode(db: Db, appId: string, code: string): StoredLink | null {
-  const row = db.get<LinkRow>('SELECT * FROM links WHERE app_id = ? AND code = ?', appId, code);
+export async function getLinkByCode(db: Db, appId: string, code: string): Promise<StoredLink | null> {
+  const row = await db.get<LinkRow>('SELECT * FROM links WHERE app_id = ? AND code = ?', appId, code);
   return row ? toLink(row) : null;
 }
 
-export function listLinks(db: Db, appId: string, options: { limit?: number; offset?: number; search?: string | null } = {}): StoredLink[] {
+export async function listLinks(db: Db, appId: string, options: { limit?: number; offset?: number; search?: string | null } = {}): Promise<StoredLink[]> {
   const limit = Math.min(Math.max(options.limit ?? 50, 1), 500);
   const offset = Math.max(options.offset ?? 0, 0);
   if (options.search) {
     const like = `%${options.search}%`;
-    return db.all<LinkRow>(
+    return (await db.all<LinkRow>(
       `SELECT * FROM links WHERE app_id = ? AND (code LIKE ? OR data LIKE ? OR campaign LIKE ? OR channel LIKE ?)
        ORDER BY id DESC LIMIT ? OFFSET ?`,
       appId, like, like, like, like, limit, offset,
-    ).map(toLink);
+    )).map(toLink);
   }
-  return db.all<LinkRow>('SELECT * FROM links WHERE app_id = ? ORDER BY id DESC LIMIT ? OFFSET ?', appId, limit, offset).map(toLink);
+  return (await db.all<LinkRow>('SELECT * FROM links WHERE app_id = ? ORDER BY id DESC LIMIT ? OFFSET ?', appId, limit, offset)).map(toLink);
 }
 
-export function updateLink(db: Db, link: StoredLink, patch: Record<string, unknown>): StoredLink {
+export async function updateLink(db: Db, link: StoredLink, patch: Record<string, unknown>): Promise<StoredLink> {
   const data = patch.data === undefined ? link.data : normalizeData(patch.data);
   const tags = normalizeTags({ ...link, ...patch, tags: patch.tags ?? link.tags });
   const disabled = patch.disabled === undefined ? link.disabled : patch.disabled === true;
-  db.run(
+  await db.run(
     'UPDATE links SET data = ?, channel = ?, feature = ?, campaign = ?, stage = ?, tags = ?, disabled = ?, dedupe_hash = NULL WHERE id = ?',
     JSON.stringify(data), tags.channel, tags.feature, tags.campaign, tags.stage, JSON.stringify(tags.tags), disabled, link.id,
   );
-  return getLinkById(db, link.id)!;
+  return (await getLinkById(db, link.id))!;
 }
 
-export function deleteLink(db: Db, link: StoredLink): void {
-  db.run('DELETE FROM links WHERE id = ?', link.id);
+export async function deleteLink(db: Db, link: StoredLink): Promise<void> {
+  await db.run('DELETE FROM links WHERE id = ?', link.id);
 }
 
 export function linkUrl(app: App, link: StoredLink, fallbackBase: string): string {
@@ -247,7 +247,7 @@ export function dataFromQuery(query: URLSearchParams): { data: LinkData; tags: L
  * Query parameters on a short link override its stored $-control values (useful for
  * per-share tweaks such as ?$web_only=true).
  */
-export function resolvePath(db: Db, app: App, path: string, query: URLSearchParams, url: string): ResolvedLink | null {
+export async function resolvePath(db: Db, app: App, path: string, query: URLSearchParams, url: string): Promise<ResolvedLink | null> {
   const segments = path.split('/').filter(Boolean).map((segment) => {
     try { return decodeURIComponent(segment); } catch { return segment; }
   });
@@ -256,7 +256,7 @@ export function resolvePath(db: Db, app: App, path: string, query: URLSearchPara
     return { link: null, data, tags, url };
   }
   if (segments.length !== 1 || RESERVED_PATHS.has(segments[0]!.toLowerCase())) return null;
-  const link = getLinkByCode(db, app.id, segments[0]!);
+  const link = await getLinkByCode(db, app.id, segments[0]!);
   if (!link || link.disabled) return null;
   const overrides = dataFromQuery(query).data;
   const data = { ...link.data };

@@ -33,8 +33,8 @@ function canonicalLinkUrl(ctx: Ctx, app: App): string {
  * path links: the path becomes $deeplink_path so website-style URLs still deep link after
  * install. A single unknown segment is a dead short link and falls back to app defaults.
  */
-function resolveRequest(deps: ClickDeps, ctx: Ctx, app: App, linkUrl: string): ResolvedLink | null {
-  const resolved = resolvePath(deps.db, app, ctx.path, ctx.query, linkUrl);
+async function resolveRequest(deps: ClickDeps, ctx: Ctx, app: App, linkUrl: string): Promise<ResolvedLink | null> {
+  const resolved = await resolvePath(deps.db, app, ctx.path, ctx.query, linkUrl);
   if (resolved) return resolved;
   const segments = ctx.path.split('/').filter(Boolean);
   if (segments.length < 2) return null;
@@ -42,14 +42,14 @@ function resolveRequest(deps: ClickDeps, ctx: Ctx, app: App, linkUrl: string): R
   return { link: null, data: { ...data, $deeplink_path: segments.join('/'), '$path_link': 'true' }, tags, url: linkUrl };
 }
 
-export function handleLinkClick(deps: ClickDeps, ctx: Ctx, app: App): void {
+export async function handleLinkClick(deps: ClickDeps, ctx: Ctx, app: App): Promise<void> {
   const userAgent = header(ctx.req, 'user-agent') ?? '';
   const client = parseUserAgent(userAgent, {
     platformVersion: header(ctx.req, 'sec-ch-ua-platform-version'),
     model: header(ctx.req, 'sec-ch-ua-model'),
   });
   const linkUrl = canonicalLinkUrl(ctx, app);
-  const resolved = resolveRequest(deps, ctx, app, linkUrl);
+  const resolved = await resolveRequest(deps, ctx, app, linkUrl);
   const data = resolved?.data ?? {};
 
   if (client.isBot) {
@@ -73,7 +73,7 @@ export function handleLinkClick(deps: ClickDeps, ctx: Ctx, app: App): void {
   if (flow === 'store' && carriedClick && /^\d{10,30}$/.test(carriedClick)) {
     clickId = carriedClick; // second hop of an interstitial: same click, do not count twice
   } else if (resolved) {
-    clickId = recordClick(deps.db, {
+    clickId = await recordClick(deps.db, {
       app,
       resolved,
       client,
@@ -106,8 +106,8 @@ export function handleLinkClick(deps: ClickDeps, ctx: Ctx, app: App): void {
 
   if (isNewClick && clickId && resolved) {
     const route = `${decision.kind}${'reason' in decision ? `:${decision.reason}` : ''}`;
-    updateClickRoute(deps.db, clickId, route);
-    logEvent(deps.db, {
+    await updateClickRoute(deps.db, clickId, route);
+    await logEvent(deps.db, {
       appId: app.id,
       kind: 'click',
       name: 'CLICK',
