@@ -4,21 +4,55 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex">
+  <meta name="color-scheme" content="light dark">
   <title>Twig Links</title>
+  <script src="/dashboard/theme.js"></script>
   <link rel="stylesheet" href="/dashboard/styles.css">
   <link rel="icon" href="/dashboard/icon.svg" type="image/svg+xml">
 </head>
 <body>
   <header class="topbar">
-    <a class="brand" href="#/apps"><img src="/dashboard/icon.svg" alt="" width="22" height="22"> Twig</a>
-    <nav id="nav" hidden>
-      <a href="#/apps">Apps</a>
-      <a href="#/team">Team</a>
-      <button type="button" id="logout" class="link">Sign out</button>
-    </nav>
+    <div class="topbar-inner">
+      <a class="brand" href="#/apps"><img src="/dashboard/icon.svg" alt="" width="24" height="24"> Twig</a>
+      <nav id="nav" class="nav" hidden>
+        <a href="#/apps" data-nav="apps">Apps</a>
+        <a href="#/team" data-nav="team">Team</a>
+      </nav>
+      <div class="topbar-actions">
+        <div class="seg" role="group" aria-label="Color theme">
+          <button type="button" data-theme-option="light" aria-label="Light theme" title="Light">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2m-7.07-17.07 1.41 1.41m11.32 11.32 1.41 1.41M2 12h2m16 0h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+          </button>
+          <button type="button" data-theme-option="dark" aria-label="Dark theme" title="Dark">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+          </button>
+          <button type="button" data-theme-option="system" aria-label="System theme" title="System">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect width="20" height="14" x="2" y="3" rx="2"/><path d="M8 21h8m-4-4v4"/></svg>
+          </button>
+        </div>
+        <button type="button" id="logout" class="ghost sm" hidden>
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4m7 14 5-5-5-5m5 5H9"/></svg>
+          <span class="hide-sm">Sign out</span>
+        </button>
+      </div>
+    </div>
   </header>
   <main id="view" class="container" aria-live="polite"></main>
-  <div id="toast" role="status" hidden></div>
+  <div id="toast" role="status" hidden>
+    <svg class="icon toast-ok" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
+    <svg class="icon toast-error" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 8v4m0 4h.01"/></svg>
+    <span id="toast-text"></span>
+  </div>
+  <dialog id="dialog" aria-labelledby="dialog-title" aria-describedby="dialog-body">
+    <form method="dialog">
+      <h2 id="dialog-title"></h2>
+      <p id="dialog-body" class="muted"></p>
+      <div class="dialog-actions">
+        <button value="cancel" class="outline">Cancel</button>
+        <button value="ok" id="dialog-ok">Confirm</button>
+      </div>
+    </form>
+  </dialog>
   <script src="/dashboard/app.js"></script>
 </body>
 </html>
