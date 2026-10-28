@@ -5,7 +5,7 @@ import { logEvent } from './events.ts';
 import type { ResolvedLink } from './links.ts';
 import { dataFromQuery, publicLinkData, resolvePath } from './links.ts';
 import { recordClick, tagsFromData, updateClickRoute } from './matching.ts';
-import { androidDeepviewPage, desktopPage, iosDeepviewPage, notFoundPage, ogPage, schemeThenFallbackPage } from './pages.ts';
+import { androidInterstitialPage, desktopPage, iosInterstitialPage, notFoundPage, ogPage, schemeThenFallbackPage } from './pages.ts';
 import type { Page } from './pages.ts';
 import { encodeQr, qrToSvg } from './qr.ts';
 import { decideRoute, FLOW_PARAM, MATCH_PARAM } from './routing.ts';
@@ -124,11 +124,11 @@ export async function handleLinkClick(deps: ClickDeps, ctx: Ctx, app: App): Prom
     case 'redirect':
       redirect(ctx, decision.url, 307, headers);
       return;
-    case 'ios_deepview':
-      page = iosDeepviewPage(app, data, decision);
+    case 'ios_interstitial':
+      page = iosInterstitialPage(app, data, decision);
       break;
-    case 'android_deepview':
-      page = androidDeepviewPage(app, data, decision);
+    case 'android_interstitial':
+      page = androidInterstitialPage(app, data, decision);
       break;
     case 'scheme_then_fallback':
       page = schemeThenFallbackPage(app, data, decision);

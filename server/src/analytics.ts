@@ -84,7 +84,7 @@ export async function topLinks(db: Db, appId: string, range: Range, limit = 20):
   );
 }
 
-/** Per-link funnel plus how clicks were routed (store, intent, deepview, web, ...). */
+/** Per-link funnel plus how clicks were routed (store, intent, interstitial, web, ...). */
 export async function linkStats(db: Db, appId: string, linkId: number, range: Range): Promise<Record<string, unknown>> {
   const counts = await db.all<{ kind: string; n: number; revenue: number | null }>(
     'SELECT kind, COUNT(*) AS n, SUM(revenue) AS revenue FROM events WHERE app_id = ? AND link_id = ? AND created_at BETWEEN ? AND ? GROUP BY kind',

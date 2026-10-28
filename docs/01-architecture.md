@@ -63,7 +63,7 @@ prefix, enough for equality matching. Click fingerprints are purged after `CLICK
 
 | Prefix | Meaning | Examples |
 |--------|---------|----------|
-| `$` | control keys (routing, previews) | `$deeplink_path`, `$ios_deeplink_path`, `$android_deeplink_path`, `$ios_url`, `$ipad_url`, `$android_url`, `$desktop_url`, `$fallback_url`, `$web_only`, `$og_title`, `$og_description`, `$og_image_url`, `$match_duration`, `$uri_redirect_mode`, `$ios_deepview` |
+| `$` | control keys (routing, previews) | `$deeplink_path`, `$ios_deeplink_path`, `$android_deeplink_path`, `$ios_url`, `$ipad_url`, `$android_url`, `$desktop_url`, `$fallback_url`, `$web_only`, `$og_title`, `$og_description`, `$og_image_url`, `$match_duration`, `$uri_redirect_mode`, `$ios_interstitial` |
 | `~` | analytics tags (added by the server) | `~channel`, `~feature`, `~campaign`, `~stage`, `~tags`, `~id`, `~referring_link` |
 | `+` | system flags (returned to apps) | `+clicked_link`, `+is_first_session`, `+match_guaranteed`, `+match_type`, `+click_timestamp`, `+non_twig_link` |
 | other | your data | `product_id`, `coupon`, … |

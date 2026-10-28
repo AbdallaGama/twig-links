@@ -10,8 +10,8 @@ export interface IosConfig {
   /** Overrides the computed App Store URL (e.g. a TestFlight or regional link). */
   appStoreUrl: string | null;
   uriScheme: string | null;
-  /** "nativelink" shows the copy-to-clipboard interstitial; "none" goes straight to the store. */
-  deepview: 'nativelink' | 'none';
+  /** "copy_link" shows the copy-to-clipboard interstitial; "none" goes straight to the store. */
+  interstitial: 'copy_link' | 'none';
   /** Used instead of the App Store when the app has no store listing yet. */
   redirectUrl: string | null;
 }
@@ -128,7 +128,7 @@ export function normalizeConfig(input: unknown, base?: AppConfig): AppConfig {
       appStoreId,
       appStoreUrl: url(ios.appStoreUrl),
       uriScheme: scheme(ios.uriScheme),
-      deepview: ios.deepview === 'none' ? 'none' : 'nativelink',
+      interstitial: ios.interstitial === 'none' ? 'none' : 'copy_link',
       redirectUrl: url(ios.redirectUrl),
     },
     android: {

@@ -111,7 +111,7 @@ export function ogPage(app: App, data: LinkData, linkUrl: string): Page {
  * then continues to the alternate domain, where a Universal Link gets a second chance
  * and otherwise the App Store opens.
  */
-export function iosDeepviewPage(app: App, data: LinkData, decision: { continueUrl: string; copyUrl: string }): Page {
+export function iosInterstitialPage(app: App, data: LinkData, decision: { continueUrl: string; copyUrl: string }): Page {
   const brand = branding(app, data);
   const body = `<main class="card">${header(brand)}
 <button class="btn" id="open" type="button">Open in the app</button>
@@ -127,7 +127,7 @@ try{navigator.clipboard.writeText(v).then(function(){setTimeout(go,300)},go)}cat
 }
 
 /** Android interstitial for in-app browsers and WebViews, where intent:// is blocked. */
-export function androidDeepviewPage(app: App, data: LinkData, decision: { storeUrl: string; intentUrl: string | null }): Page {
+export function androidInterstitialPage(app: App, data: LinkData, decision: { storeUrl: string; intentUrl: string | null }): Page {
   const brand = branding(app, data);
   const open = decision.intentUrl ? `<a class="btn" href="${escapeHtml(decision.intentUrl)}">Open in the app</a>` : '';
   const body = `<main class="card">${header(brand)}${open}

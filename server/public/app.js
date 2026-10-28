@@ -442,7 +442,7 @@
   var SETTINGS = [
     ['General', [['name', 'App name'], ['desktopUrl', 'Desktop URL', 'url', 'Where desktop clicks go'], ['fallbackUrl', 'Fallback URL', 'url', 'Other platforms / no app'], ['matchWindowSec', 'Deferred match window (seconds)', 'number']]],
     ['iOS', [['ios.teamId', 'Apple Team ID'], ['ios.bundleIds', 'Bundle IDs', 'list', 'comma separated'], ['ios.appStoreId', 'App Store ID', 'text', 'numbers only'], ['ios.uriScheme', 'URI scheme', 'text', 'e.g. myapp'],
-      ['ios.deepview', 'Interstitial', 'select:nativelink=Copy-link interstitial (deterministic deferred deep links),none=Go straight to the App Store'], ['ios.appStoreUrl', 'Custom App Store URL', 'url'], ['ios.redirectUrl', 'Web URL when not on the App Store', 'url']]],
+      ['ios.interstitial', 'Interstitial', 'select:copy_link=Copy-link interstitial (deterministic deferred deep links),none=Go straight to the App Store'], ['ios.appStoreUrl', 'Custom App Store URL', 'url'], ['ios.redirectUrl', 'Web URL when not on the App Store', 'url']]],
     ['Android', [['android.packageName', 'Package name'], ['android.sha256Fingerprints', 'SHA-256 signing fingerprints', 'lines', 'one per line (Play App Signing + upload key)'], ['android.uriScheme', 'URI scheme'],
       ['android.playStoreUrl', 'Custom Play Store URL', 'url'], ['android.redirectUrl', 'Web URL when not on Google Play', 'url']]],
     ['Link previews', [['og.title', 'Default title'], ['og.description', 'Default description'], ['og.imageUrl', 'Default image URL', 'url']]],

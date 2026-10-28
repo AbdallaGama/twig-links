@@ -30,8 +30,8 @@ export interface RouteInput {
 export type RouteDecision =
   | { kind: 'bot' }
   | { kind: 'redirect'; url: string; reason: string }
-  | { kind: 'ios_deepview'; continueUrl: string; copyUrl: string; storeUrl: string; reason: string }
-  | { kind: 'android_deepview'; storeUrl: string; intentUrl: string | null; reason: string }
+  | { kind: 'ios_interstitial'; continueUrl: string; copyUrl: string; storeUrl: string; reason: string }
+  | { kind: 'android_interstitial'; storeUrl: string; intentUrl: string | null; reason: string }
   | { kind: 'scheme_then_fallback'; schemeUrl: string; fallbackUrl: string; timeoutMs: number; reason: string }
   | { kind: 'desktop'; reason: string };
 
@@ -155,20 +155,20 @@ export function decideRoute(input: RouteInput): RouteDecision {
       };
     }
 
-    const override = text(data.$ios_deepview);
-    const deepview = override === 'false' || override === 'none' ? 'none' : config.ios.deepview;
-    if (deepview === 'nativelink') {
+    const override = text(data.$ios_interstitial);
+    const interstitial = override === 'false' || override === 'none' ? 'none' : config.ios.interstitial;
+    if (interstitial === 'copy_link') {
       // Second hop on the alternate domain gives the Universal Link another chance: iOS
       // ignores Universal Links for navigations that stay on the same domain.
       const alternate = alternateHost(app);
       const hopHost = alternate && alternate !== input.requestHost ? alternate : input.requestHost;
       const continueUrl = appendQuery(`https://${hopHost}${input.requestPathAndQuery}`, { [FLOW_PARAM]: 'store', [MATCH_PARAM]: clickId });
       return {
-        kind: 'ios_deepview',
+        kind: 'ios_interstitial',
         continueUrl,
         copyUrl: appendQuery(input.linkUrl, { link_click_id: clickId }),
         storeUrl: store,
-        reason: 'ios_nativelink',
+        reason: 'ios_copy_link',
       };
     }
     return { kind: 'redirect', url: store, reason: 'ios_app_store' };
@@ -193,7 +193,7 @@ export function decideRoute(input: RouteInput): RouteDecision {
       fallbackUrl: fallback,
     });
     // In-app browsers (Facebook, Instagram, WebViews) block intent:// navigation.
-    if (client.inApp || !intent) return { kind: 'android_deepview', storeUrl: fallback, intentUrl: intent, reason: client.inApp ? 'android_in_app' : 'android_no_intent' };
+    if (client.inApp || !intent) return { kind: 'android_interstitial', storeUrl: fallback, intentUrl: intent, reason: client.inApp ? 'android_in_app' : 'android_no_intent' };
     return { kind: 'redirect', url: intent, reason: 'android_intent' };
   }
 

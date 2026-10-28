@@ -26,17 +26,17 @@ describe('decideRoute — the selection logic', () => {
     assert.deepEqual(decideRoute(input(UA.whatsapp)), { kind: 'bot' });
   });
 
-  it('iOS Safari gets the NativeLink interstitial that hops to the alternate domain', () => {
+  it('iOS Safari gets the copy-link interstitial that hops to the alternate domain', () => {
     const decision = decideRoute(input(UA.iosSafari, { $deeplink_path: 'product/42' }));
-    assert.equal(decision.kind, 'ios_deepview');
-    if (decision.kind !== 'ios_deepview') return;
+    assert.equal(decision.kind, 'ios_interstitial');
+    if (decision.kind !== 'ios_interstitial') return;
     assert.equal(decision.continueUrl, 'https://open.shop.test/AbC123?__twig_flow=store&_twig_match_id=1730000000000123456');
     assert.equal(decision.copyUrl, 'https://links.shop.test/AbC123?link_click_id=1730000000000123456');
     assert.equal(decision.storeUrl, 'https://apps.apple.com/app/id123456789');
   });
 
   it('iOS in-app browsers get the same interstitial', () => {
-    assert.equal(decideRoute(input(UA.iosInstagram)).kind, 'ios_deepview');
+    assert.equal(decideRoute(input(UA.iosInstagram)).kind, 'ios_interstitial');
   });
 
   it('the store hop on the alternate domain redirects to the App Store', () => {
@@ -45,8 +45,8 @@ describe('decideRoute — the selection logic', () => {
     });
   });
 
-  it('iOS goes straight to the store when the deepview is disabled', () => {
-    const decision = decideRoute(input(UA.iosSafari, { $ios_deepview: 'false' }));
+  it('iOS goes straight to the store when the interstitial is disabled', () => {
+    const decision = decideRoute(input(UA.iosSafari, { $ios_interstitial: 'false' }));
     assert.deepEqual(decision, { kind: 'redirect', url: 'https://apps.apple.com/app/id123456789', reason: 'ios_app_store' });
   });
 
@@ -78,9 +78,9 @@ describe('decideRoute — the selection logic', () => {
     assert.match(decision.url, /S\.market_referrer=link_click_id%3D1730000000000123456;end$/);
   });
 
-  it('Android in-app browsers get a deepview page instead of a blocked intent', () => {
+  it('Android in-app browsers get an interstitial page instead of a blocked intent', () => {
     const decision = decideRoute(input(UA.androidFacebook));
-    assert.equal(decision.kind, 'android_deepview');
+    assert.equal(decision.kind, 'android_interstitial');
   });
 
   it('Android without a URI scheme falls back to an https App Link intent', () => {

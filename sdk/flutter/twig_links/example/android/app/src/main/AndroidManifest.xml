@@ -32,7 +32,7 @@
                 <data android:scheme="https" android:host="links.example.com" />
                 <data android:scheme="https" android:host="open.example.com" />
             </intent-filter>
-            <!-- Twig URI scheme (used by intent:// redirects and the deepview pages). -->
+            <!-- Twig URI scheme (used by intent:// redirects and the interstitial pages). -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />

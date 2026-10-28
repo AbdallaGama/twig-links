@@ -171,7 +171,7 @@ describe('Twig end to end', () => {
     assert.equal((await h.db.get<{ n: number }>('SELECT COUNT(*) AS n FROM clicks'))!.n, before);
   });
 
-  it('resolves pasteboard links (NativeLink) deterministically', async () => {
+  it('resolves pasteboard links (copy-link interstitial) deterministically', async () => {
     const res = await click(`/${shortCode}`, UA.iosSafari);
     const copyUrl = /var c="([^"]+)"/.exec(res.body)![1]!;
     const open = await sdk('/v1/open', { is_first_launch: true, hardware_id: 'ios-idfv-2', os: 'iOS', pasteboard_url: `${copyUrl}&_cpts=${Date.now()}` });
@@ -227,7 +227,7 @@ describe('Twig end to end', () => {
     assert.equal(summary.revenue, 59.9);
     const stats = (await dash(`/api/apps/${appId}/links/${shortCode}/stats`)).json().stats;
     assert.ok(stats.routes.some((r: any) => r.route === 'redirect:android_intent'));
-    assert.ok(stats.routes.some((r: any) => r.route === 'ios_deepview:ios_nativelink'));
+    assert.ok(stats.routes.some((r: any) => r.route === 'ios_interstitial:ios_copy_link'));
     const top = (await dash(`/api/apps/${appId}/analytics/top-links`)).json().links;
     assert.equal(top[0].code, shortCode);
     const csv = await dash(`/api/apps/${appId}/export/events.csv`);
