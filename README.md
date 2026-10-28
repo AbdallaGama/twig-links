@@ -40,6 +40,15 @@ Open http://localhost:8080/dashboard, create the owner with the setup token prin
 (or set `ADMIN_EMAIL` / `ADMIN_PASSWORD`), create an app, add its link domain, fill in the iOS
 and Android details, and integrate an SDK from the app's **Integrate** tab.
 
+## Install the SDKs
+
+| Platform | How |
+|----------|-----|
+| Flutter | `flutter pub add twig_links` (or a git dependency on `sdk/flutter/twig_links`) |
+| iOS (Swift) | Swift Package Manager: this repository's URL, version `0.1.0`, product `TwigLinks` — or CocoaPods `pod 'TwigLinks', :git => '…', :tag => '0.1.0'` |
+| Android (Kotlin) | Include `sdk/android/twig-links` as a module, or `./gradlew :twig-links:publishToMavenLocal` |
+| Web | `<script src="https://<your-worker>/sdk/twig.js">` |
+
 ## How a click is routed
 
 | Client | Twig does |

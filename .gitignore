@@ -33,3 +33,6 @@ local.properties
 dist-assets/
 .wrangler/
 .dev.vars
+
+# Local tooling
+.claude/

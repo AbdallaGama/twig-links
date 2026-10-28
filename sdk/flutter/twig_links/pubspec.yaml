@@ -1,8 +1,16 @@
 name: twig_links
-description: "Free, self-hosted Universal Links, Android App Links and deferred deep linking for Flutter, backed by your own Twig server."
+description: "Universal Links, Android App Links, deferred deep linking and share links for Flutter, backed by your own free, self-hosted Twig server."
 version: 0.1.0
-publish_to: none
-homepage: https://github.com/your-org/twig
+homepage: https://github.com/AbdallaGama/Branchio-Clone-Github
+repository: https://github.com/AbdallaGama/Branchio-Clone-Github/tree/main/sdk/flutter/twig_links
+issue_tracker: https://github.com/AbdallaGama/Branchio-Clone-Github/issues
+documentation: https://github.com/AbdallaGama/Branchio-Clone-Github/blob/main/docs/03-integration-guide.md
+topics:
+  - deep-linking
+  - universal-links
+  - app-links
+  - dynamic-links
+  - attribution
 
 environment:
   sdk: ^3.10.0

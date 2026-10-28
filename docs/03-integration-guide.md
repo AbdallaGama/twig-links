@@ -71,10 +71,13 @@ adb shell pm get-app-links com.example.app
 
 ```yaml
 dependencies:
-  twig_links:
-    git:
-      url: https://github.com/your-org/twig.git
-      path: sdk/flutter/twig_links
+  twig_links: ^0.1.0   # from pub.dev
+  # or straight from GitHub:
+  # twig_links:
+  #   git:
+  #     url: https://github.com/AbdallaGama/Branchio-Clone-Github.git
+  #     path: sdk/flutter/twig_links
+  #     ref: 0.1.0
 ```
 
 Requires Flutter 3.38+ (UIScene-aware plugin API). Disable Flutter's built-in deep linking so
@@ -126,8 +129,8 @@ entitlements and URL scheme already configured with placeholder domains).
 
 ## 3. Native iOS (Swift)
 
-Swift Package Manager: *File → Add Package Dependencies…* → this repository URL, product
-`TwigLinks`. CocoaPods: `pod 'TwigLinks', :git => 'https://github.com/your-org/twig.git'`.
+Swift Package Manager: *File → Add Package Dependencies…* → `https://github.com/AbdallaGama/Branchio-Clone-Github`, version `0.1.0`, product
+`TwigLinks`. CocoaPods: `pod 'TwigLinks', :git => 'https://github.com/AbdallaGama/Branchio-Clone-Github.git', :tag => '0.1.0'`.
 
 ```swift
 import TwigLinks
